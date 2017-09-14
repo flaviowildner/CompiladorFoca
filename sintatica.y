@@ -34,6 +34,7 @@ string gerarNome(){
 %start S
 
 %left '+'
+%left '-'
 
 %%
 
@@ -62,6 +63,12 @@ E 			: E '+' E
 				$$.label = tempNome;
 				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " + " + $3.label + ";\n";
 			}
+			| E '-' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " - " + $3.label + ";\n";
+			}
 			| TK_NUM
 			{
 				string tempNome = gerarNome();
@@ -70,8 +77,9 @@ E 			: E '+' E
 			}
 			| TK_ID
 			{
-
+				
 			}
+			|
 			;
 
 %%
