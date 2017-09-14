@@ -74,11 +74,3 @@ void yyerror( string MSG )
 	cout << MSG << endl;
 	exit (0);
 }
-
-/*
-
-flex lexica.l
-bison -d sintatica.y
-g++ -o glf sintatica.tab.c
-
-*/
