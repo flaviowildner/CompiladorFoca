@@ -87,9 +87,19 @@ struct atributos
 int yylex(void);
 void yyerror(string);
 
+string gerarNome(){
+	static int numeroVariaveis = 0;
+	numeroVariaveis++;
+
+	ostringstream stringNumeroVariaveis;
+	stringNumeroVariaveis << numeroVariaveis;
+
+	return "var_" + stringNumeroVariaveis.str();
+}
+
 
 /* Line 189 of yacc.c  */
-#line 93 "sintatica.tab.c"
+#line 103 "sintatica.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -139,7 +149,7 @@ typedef int YYSTYPE;
 
 
 /* Line 264 of yacc.c  */
-#line 143 "sintatica.tab.c"
+#line 153 "sintatica.tab.c"
 
 #ifdef short
 # undef short
@@ -423,7 +433,7 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    30,    30,    36,    42,    43,    46,    49,    53,    57
+       0,    40,    40,    46,    52,    53,    56,    59,    65,    71
 };
 #endif
 
@@ -1326,7 +1336,7 @@ yyreduce:
         case 2:
 
 /* Line 1455 of yacc.c  */
-#line 31 "sintatica.y"
+#line 41 "sintatica.y"
     {
 				cout << "/*Compilador FOCA*/\n" << "#include <iostream>\n#include<string.h>\n#include<stdio.h>\nint main(void)\n{\n" << (yyvsp[(5) - (5)]).traducao << "\treturn 0;\n}" << endl; 
 			;}
@@ -1335,7 +1345,7 @@ yyreduce:
   case 3:
 
 /* Line 1455 of yacc.c  */
-#line 37 "sintatica.y"
+#line 47 "sintatica.y"
     {
 				(yyval).traducao = (yyvsp[(2) - (3)]).traducao;
 			;}
@@ -1344,25 +1354,38 @@ yyreduce:
   case 7:
 
 /* Line 1455 of yacc.c  */
-#line 50 "sintatica.y"
+#line 60 "sintatica.y"
     {
-				(yyval).traducao = (yyvsp[(1) - (3)]).traducao + (yyvsp[(3) - (3)]).traducao + "\ta = b + c;\n";
+				string tempNome = gerarNome();
+				(yyval).label = tempNome;
+				(yyval).traducao = (yyvsp[(1) - (3)]).traducao + (yyvsp[(3) - (3)]).traducao + "\t" + tempNome + " = " + (yyvsp[(1) - (3)]).label + " + " + (yyvsp[(3) - (3)]).label + ";\n";
 			;}
     break;
 
   case 8:
 
 /* Line 1455 of yacc.c  */
-#line 54 "sintatica.y"
+#line 66 "sintatica.y"
     {
-				(yyval).traducao = "\ta = " + (yyvsp[(1) - (1)]).traducao + ";\n";
+				string tempNome = gerarNome();
+				(yyval).label = tempNome;
+				(yyval).traducao = "\t" + tempNome + " = " + (yyvsp[(1) - (1)]).label + ";\n";
+			;}
+    break;
+
+  case 9:
+
+/* Line 1455 of yacc.c  */
+#line 72 "sintatica.y"
+    {
+
 			;}
     break;
 
 
 
 /* Line 1455 of yacc.c  */
-#line 1366 "sintatica.tab.c"
+#line 1389 "sintatica.tab.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -1574,7 +1597,7 @@ yyreturn:
 
 
 /* Line 1675 of yacc.c  */
-#line 60 "sintatica.y"
+#line 77 "sintatica.y"
 
 
 #include "lex.yy.c"

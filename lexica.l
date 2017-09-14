@@ -27,7 +27,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 [+\-*/]		{ return *yytext; }
 
-{NUM}		{ yylval.traducao = yytext; return TK_NUM; }
+{NUM}		{ yylval.label = yytext; return TK_NUM; }
 {ID}		{ yylval.label = yytext; return TK_ID; }
 
 .			{ *yytext; }

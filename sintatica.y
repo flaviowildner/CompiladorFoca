@@ -15,6 +15,16 @@ struct atributos
 
 int yylex(void);
 void yyerror(string);
+
+string gerarNome(){
+	static int numeroVariaveis = 0;
+	numeroVariaveis++;
+
+	ostringstream stringNumeroVariaveis;
+	stringNumeroVariaveis << numeroVariaveis;
+
+	return "var_" + stringNumeroVariaveis.str();
+}
 %}
 
 %token TK_NUM
@@ -48,13 +58,20 @@ COMANDO 	: E ';'
 
 E 			: E '+' E
 			{
-				$$.traducao = $1.traducao + $3.traducao + "\ta = b + c;\n";
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " + " + $3.label + ";\n";
 			}
 			| TK_NUM
 			{
-				$$.traducao = "\ta = " + $1.traducao + ";\n";
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = "\t" + tempNome + " = " + $1.label + ";\n";
 			}
 			| TK_ID
+			{
+
+			}
 			;
 
 %%
@@ -74,3 +91,11 @@ void yyerror( string MSG )
 	cout << MSG << endl;
 	exit (0);
 }
+
+/*
+
+flex lexica.l
+bison -d sintatica.y
+g++ -o glf sintatica.tab.c
+
+*/
