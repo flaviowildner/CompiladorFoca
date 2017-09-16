@@ -1,4 +1,5 @@
 %{
+#include <stdio.h>
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -35,6 +36,10 @@ string gerarNome(){
 
 %left '+'
 %left '-'
+%left '*'
+%left '/'
+%left '('
+%left ')'
 
 %%
 
@@ -57,17 +62,61 @@ COMANDOS	: COMANDO COMANDOS
 COMANDO 	: E ';'
 			;
 
-E 			: E '+' E
+E 			: E '+' T
 			{
 				string tempNome = gerarNome();
 				$$.label = tempNome;
 				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " + " + $3.label + ";\n";
 			}
-			| E '-' E
+			| E '-' T
 			{
 				string tempNome = gerarNome();
 				$$.label = tempNome;
 				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " - " + $3.label + ";\n";
+			}
+			| T
+			{
+				$$ = $1;
+			}
+			|
+			;
+
+
+T   		: T '*' P
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " * " + $3.label + ";\n";
+
+			}
+			| T '/' P
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " / " + $3.label + ";\n";
+			}
+			| P
+			{
+				$$ = $1;
+			}
+			;
+
+
+P   		: '(' E ')'
+			{
+				$$ = $2;
+			}
+			|
+			F
+			{
+				$$ = $1;
+			}
+			;
+
+
+F   		: E
+			{
+				$$ = $1;
 			}
 			| TK_NUM
 			{
@@ -75,11 +124,6 @@ E 			: E '+' E
 				$$.label = tempNome;
 				$$.traducao = "\t" + tempNome + " = " + $1.label + ";\n";
 			}
-			| TK_ID
-			{
-				
-			}
-			|
 			;
 
 %%
