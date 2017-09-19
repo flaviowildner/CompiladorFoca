@@ -34,12 +34,13 @@ string gerarNome(){
 
 %start S
 
+
+
 %left '+'
 %left '-'
 %left '*'
 %left '/'
-%left '('
-%left ')'
+
 
 %%
 
@@ -47,6 +48,7 @@ S 			: TK_TIPO_INT TK_MAIN '(' ')' BLOCO
 			{
 				cout << "/*Compilador FOCA*/\n" << "#include <iostream>\n#include<string.h>\n#include<stdio.h>\nint main(void)\n{\n" << $5.traducao << "\treturn 0;\n}" << endl; 
 			}
+			|
 			;
 
 BLOCO		: '{' COMANDOS '}'
@@ -56,23 +58,43 @@ BLOCO		: '{' COMANDOS '}'
 			;
 
 COMANDOS	: COMANDO COMANDOS
+			{ 
+				$$.label = $1.label + $2.label;
+				$$.traducao = $1.traducao + $2.traducao;
+			}
 			|
 			;
 
-COMANDO 	: E ';'
+COMANDO 	: E ';'{ }
 			;
 
-E 			: E '+' T
+E 			: E '+' E
 			{
 				string tempNome = gerarNome();
 				$$.label = tempNome;
 				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " + " + $3.label + ";\n";
 			}
-			| E '-' T
+			| E '-' E
 			{
 				string tempNome = gerarNome();
 				$$.label = tempNome;
 				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " - " + $3.label + ";\n";
+			}
+			| E '*' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " * " + $3.label + ";\n";
+			}
+			| E '/' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " / " + $3.label + ";\n";
+			}
+			| '(' E ')'
+			{
+				$$ = $2;
 			}
 			| T
 			{
@@ -81,50 +103,35 @@ E 			: E '+' T
 			|
 			;
 
-
-T   		: T '*' P
-			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " * " + $3.label + ";\n";
-
-			}
-			| T '/' P
-			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " / " + $3.label + ";\n";
-			}
-			| P
-			{
-				$$ = $1;
-			}
-			;
-
-
-P   		: '(' E ')'
-			{
-				$$ = $2;
-			}
-			|
-			F
-			{
-				$$ = $1;
-			}
-			;
-
-
-F   		: E
-			{
-				$$ = $1;
-			}
-			| TK_NUM
+T 			: F
 			{
 				string tempNome = gerarNome();
 				$$.label = tempNome;
 				$$.traducao = "\t" + tempNome + " = " + $1.label + ";\n";
+
+			}
+			| '-' F
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = "\t" + tempNome + " = -" + $2.label + ";\n";
+			}
+			| '+' F
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = "\t" + tempNome + " = " + $2.label + ";\n";
 			}
 			;
+
+
+
+F   		: TK_NUM
+			{
+				$$.label = $1.label;
+			}
+			;
+
 
 %%
 
