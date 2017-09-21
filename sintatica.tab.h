@@ -40,11 +40,12 @@
       know about them.  */
    enum yytokentype {
      TK_NUM = 258,
-     TK_MAIN = 259,
-     TK_ID = 260,
-     TK_TIPO_INT = 261,
-     TK_FIM = 262,
-     TK_ERROR = 263
+     TK_CHAR = 259,
+     TK_MAIN = 260,
+     TK_ID = 261,
+     TK_TIPO_INT = 262,
+     TK_FIM = 263,
+     TK_ERROR = 264
    };
 #endif
 

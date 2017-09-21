@@ -12,6 +12,7 @@ struct atributos
 {
 	string label;
 	string traducao;
+	string tipo;
 };
 
 int yylex(void);
@@ -29,17 +30,18 @@ string gerarNome(){
 %}
 
 %token TK_NUM
+%token TK_CHAR
 %token TK_MAIN TK_ID TK_TIPO_INT
 %token TK_FIM TK_ERROR
 
 %start S
 
+%left "||" "&&"
+%left "==" "!="
+%left '<' '>' ">=" "<="
+%left '+' '-'
+%left '*' '/'
 
-
-%left '+'
-%left '-'
-%left '*'
-%left '/'
 
 
 %%
@@ -96,6 +98,54 @@ E 			: E '+' E
 			{
 				$$ = $2;
 			}
+			| E '>' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " > " + $3.label + ";\n";
+			}
+			| E '<' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " < " + $3.label + ";\n";
+			}
+			| E '>' '=' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " >= " + $4.label + ";\n";
+			}
+			| E '<' '=' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " <= " + $4.label + ";\n";
+			}
+			| E '=' '=' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " == " + $4.label + ";\n";
+			}
+			| E '!' '=' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " != " + $4.label + ";\n";
+			}
+			| E '&' '&' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " && " + $4.label + ";\n";
+			}
+			| E '|' '|' E
+			{
+				string tempNome = gerarNome();
+				$$.label = tempNome;
+				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " || " + $4.label + ";\n";
+			}
 			| T
 			{
 				$$ = $1;
@@ -129,6 +179,17 @@ T 			: F
 F   		: TK_NUM
 			{
 				$$.label = $1.label;
+				printf("%s\n", $1.tipo.c_str());
+			}
+			| TK_ID
+			{
+				$$.label = $1.label;
+				printf("%s\n", $1.tipo.c_str());
+			}
+			| TK_CHAR
+			{
+				$$.label = $1.label;
+				printf("%s\n", $1.tipo.c_str());
 			}
 			;
 
@@ -150,11 +211,3 @@ void yyerror( string MSG )
 	cout << MSG << endl;
 	exit (0);
 }
-
-/*
-
-flex lexica.l
-bison -d sintatica.y
-g++ -o glf sintatica.tab.c
-
-*/
