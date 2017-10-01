@@ -27,8 +27,65 @@ string gerarNome(){
 
 	return "var_" + stringNumeroVariaveis.str();
 }
+
+string conversaoImplicita(atributos E1, atributos E2, string operador, atributos *$$){
+	if(E1.tipo == "bool" || E2.tipo == "bool"){
+		yyerror("Error: Operação com tipo boolean é invalida.");
+	}
+
+	if(operador == "+" || operador == "-" || operador == "*" || operador == "/"){
+		if(E1.tipo == E2.tipo){
+				string tempLabelResultado = gerarNome();
+				$$->label = tempLabelResultado;
+				return "\t" + E1.tipo + " " + tempLabelResultado + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
+		}else if(E1.tipo != E2.tipo){
+			if(E1.tipo == "int"){
+				string tempCastVarLabel = gerarNome();
+				string builder = "\t" + E2.tipo + " " + tempCastVarLabel + " = " + "(" + E2.tipo + ")" + E1.label + ";\n";
+				E1.label = tempCastVarLabel;
+				string tempLabelResultado = gerarNome();
+				$$->label = tempLabelResultado;
+				return builder + "\t" + E2.tipo + " " + tempLabelResultado + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
+			}else{
+				string tempCastVarLabel = gerarNome();
+				string builder = "\t" + E1.tipo + " " + tempCastVarLabel + " = " + "(" + E1.tipo + ")" + E2.label + ";\n";
+				E2.label = tempCastVarLabel;
+				string tempLabelResultado = gerarNome();
+				$$->label = tempLabelResultado;
+				return builder + "\t" + E1.tipo + " " + tempLabelResultado + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
+			}
+		}
+	}else if(operador == "<" || operador == ">" || operador == ">=" || operador == "<=" || operador "==" || operador == "!=" || operador == "&&" || operador == "||"){
+		if(E1.tipo == E2.tipo){
+				string tempLabelResultado = gerarNome();
+				$$->label = tempLabelResultado;
+				return "\tbool " + tempLabelResultado + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
+		}else if(E1.tipo != E2.tipo){
+			if(E1.tipo == "int"){
+				string tempCastVarLabel = gerarNome();
+				string builder = "\t" + E2.tipo + " " + tempCastVarLabel + " = " + "(" + E2.tipo + ")" + E1.label + ";\n";
+				E1.label = tempCastVarLabel;
+				string tempLabelResultado = gerarNome();
+				$$->label = tempLabelResultado;
+				return builder + "\tbool " + tempLabelResultado + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
+			}else{
+				string tempCastVarLabel = gerarNome();
+				string builder = "\t" + E1.tipo + " " + tempCastVarLabel + " = " + "(" + E1.tipo + ")" + E2.label + ";\n";
+				E2.label = tempCastVarLabel;
+				string tempLabelResultado = gerarNome();
+				$$->label = tempLabelResultado;
+				return builder + "\tbool " + tempLabelResultado + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
+			}
+		}
+	}
+}
+
+
+
 %}
 
+%token TK_CAST
+%token TK_BOOL
 %token TK_NUM
 %token TK_CHAR
 %token TK_MAIN TK_ID TK_TIPO_INT
@@ -48,7 +105,7 @@ string gerarNome(){
 
 S 			: TK_TIPO_INT TK_MAIN '(' ')' BLOCO
 			{
-				cout << "/*Compilador FOCA*/\n" << "#include <iostream>\n#include<string.h>\n#include<stdio.h>\nint main(void)\n{\n" << $5.traducao << "\treturn 0;\n}" << endl; 
+				cout << "/*Compilador FOCA*/\n" << "#include <iostream>\n#include<string.h>\n#include<stdio.h>\nint main(void)\n{\n" << $5.traducao << "\treturn 0;\n}" << endl;
 			}
 			|
 			;
@@ -61,7 +118,6 @@ BLOCO		: '{' COMANDOS '}'
 
 COMANDOS	: COMANDO COMANDOS
 			{ 
-				$$.label = $1.label + $2.label;
 				$$.traducao = $1.traducao + $2.traducao;
 			}
 			|
@@ -70,81 +126,64 @@ COMANDOS	: COMANDO COMANDOS
 COMANDO 	: E ';'{ }
 			;
 
-E 			: E '+' E
+E 			: '(' E ')'
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " + " + $3.label + ";\n";
+				$$ = $2;
+			} 
+			| E '+' E
+			{
+				$$.traducao = $1.traducao + $3.traducao + conversaoImplicita($1, $3, "+", &$$);
 			}
 			| E '-' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " - " + $3.label + ";\n";
+				$$.traducao = $1.traducao + $3.traducao + conversaoImplicita($1, $3, "-", &$$);
 			}
 			| E '*' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " * " + $3.label + ";\n";
+				$$.traducao = $1.traducao + $3.traducao + conversaoImplicita($1, $3, "*", &$$);
 			}
 			| E '/' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " / " + $3.label + ";\n";
-			}
-			| '(' E ')'
-			{
-				$$ = $2;
+				$$.traducao = $1.traducao + $3.traducao + conversaoImplicita($1, $3, "/", &$$);
 			}
 			| E '>' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " > " + $3.label + ";\n";
+				$$.traducao = $1.traducao + $3.traducao + conversaoImplicita($1, $3, ">", &$$);
 			}
 			| E '<' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + tempNome + " = " + $1.label + " < " + $3.label + ";\n";
+				$$.traducao = $1.traducao + $3.traducao + conversaoImplicita($1, $3, "<", &$$);
 			}
 			| E '>' '=' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " >= " + $4.label + ";\n";
+				$$.traducao = $1.traducao + $4.traducao + conversaoImplicita($1, $4, ">=", &$$);
 			}
 			| E '<' '=' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " <= " + $4.label + ";\n";
+				$$.traducao = $1.traducao + $4.traducao + conversaoImplicita($1, $4, "<=", &$$);
 			}
 			| E '=' '=' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " == " + $4.label + ";\n";
+				$$.traducao = $1.traducao + $4.traducao + conversaoImplicita($1, $4, "==", &$$);
 			}
 			| E '!' '=' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " != " + $4.label + ";\n";
+				$$.traducao = $1.traducao + $4.traducao + conversaoImplicita($1, $4, "!=", &$$);
 			}
 			| E '&' '&' E
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " && " + $4.label + ";\n";
+				$$.traducao = $1.traducao + $4.traducao + conversaoImplicita($1, $4, "&&", &$$);
 			}
 			| E '|' '|' E
 			{
+				$$.traducao = $1.traducao + $4.traducao + conversaoImplicita($1, $4, "||", &$$);
+			}
+			| E '%' '%' E
+			{
 				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " || " + $4.label + ";\n";
+				string tempNome2 = gerarNome();
+				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " * " + $4.label + ";\n" + "\t" + tempNome2 + " = " + tempNome + " / 100;\n";
+				$$.label = tempNome2;
 			}
 			| T
 			{
@@ -153,24 +192,32 @@ E 			: E '+' E
 			|
 			;
 
-T 			: F
+T 			: C F
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = "\t" + tempNome + " = " + $1.label + ";\n";
-
+				$$ = $2;
+				$$.label = gerarNome();
+				if($1.label == "(float)"){
+					$$.traducao = "\tfloat " + $$.label + " = " + $2.label + ";\n";
+					$$.tipo = "float";
+				}else if($1.label == "(int)"){
+					$$.traducao = "\tint " + $$.label + " = " + $2.label + ";\n";
+					$$.tipo = "int";
+				}else{
+					$$.traducao = "\t" + $2.tipo + " " + $$.label + " = " + $2.label + ";\n";
+				}
 			}
 			| '-' F
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = "\t" + tempNome + " = -" + $2.label + ";\n";
+				$$ = $2;
+				$$.label = gerarNome();
+				$$.traducao = $2.traducao + "\t" + $2.tipo + " " + $$.label + " = -" + $2.label + ";\n";
+				
 			}
 			| '+' F
 			{
-				string tempNome = gerarNome();
-				$$.label = tempNome;
-				$$.traducao = "\t" + tempNome + " = " + $2.label + ";\n";
+				$$ = $2;
+				$$.label = gerarNome();
+				$$.traducao = "\t" + $2.tipo + " " + $$.label + " = " + $2.label + ";\n";
 			}
 			;
 
@@ -178,19 +225,24 @@ T 			: F
 
 F   		: TK_NUM
 			{
-				$$.label = $1.label;
-				printf("%s\n", $1.tipo.c_str());
+				$$ = $1;
 			}
 			| TK_ID
 			{
-				$$.label = $1.label;
-				printf("%s\n", $1.tipo.c_str());
+				$$ = $1;
 			}
 			| TK_CHAR
 			{
-				$$.label = $1.label;
-				printf("%s\n", $1.tipo.c_str());
+				$$ = $1;
 			}
+			;
+
+
+C 			: TK_CAST
+			{
+				$$ = $1;
+			}
+			|
 			;
 
 
