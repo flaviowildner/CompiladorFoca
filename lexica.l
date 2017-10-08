@@ -31,16 +31,16 @@ ID {LETRA}({LETRA}|{NUM})*
 
 [(){}[\];,]	{ return *yytext; }
 
-[+\-*/]		{ return *yytext; }
+[+\-*/?]		{ return *yytext; }
 
 [&|%]	{return *yytext; }
 
 [<>!=]	{return *yytext; }
 
-{NUM}		{ yylval.label = yytext; yylval.tipo = "int"; return TK_NUM; }
-{ID}		{ yylval.label = yytext; return TK_ID; }
-{REAL}		{ yylval.label = yytext; yylval.tipo = "float"; return TK_NUM; }
-{CHAR}      { yylval.label = yytext; yylval.tipo = "char"; return TK_NUM; }
+{NUM}		{ yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "int"; return TK_NUM; }
+{ID}		{ yylval.label = yytext; yylval.nomeVariavel = yytext; yylval.tipo = "id"; return TK_ID; }
+{REAL}		{ yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "float"; return TK_NUM; }
+{CHAR}      { yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "char"; return TK_NUM; }
 
 .			{ *yytext; }
 

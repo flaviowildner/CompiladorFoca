@@ -301,7 +301,7 @@ static yyconst int yy_ec[256] =
         1,    2,    4,    1,    1,    1,    5,    5,    6,    7,
         8,    9,    9,   10,    9,   11,    9,   12,   12,   12,
        12,   12,   12,   12,   12,   12,   12,    1,   10,    4,
-        4,    4,    1,    1,   13,   13,   13,   13,   13,   13,
+        4,    4,    9,    1,   13,   13,   13,   13,   13,   13,
        13,   13,   13,   13,   13,   13,   13,   13,   13,   13,
        13,   13,   13,   13,   13,   13,   13,   13,   13,   13,
        10,    1,   10,    1,   13,    1,   14,   13,   13,   13,
@@ -688,22 +688,22 @@ YY_RULE_SETUP
 case 11:
 YY_RULE_SETUP
 #line 40 "lexica.l"
-{ yylval.label = yytext; yylval.tipo = "int"; return TK_NUM; }
+{ yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "int"; return TK_NUM; }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
 #line 41 "lexica.l"
-{ yylval.label = yytext; return TK_ID; }
+{ yylval.label = yytext; yylval.nomeVariavel = yytext; yylval.tipo = "id"; return TK_ID; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
 #line 42 "lexica.l"
-{ yylval.label = yytext; yylval.tipo = "float"; return TK_NUM; }
+{ yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "float"; return TK_NUM; }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
 #line 43 "lexica.l"
-{ yylval.label = yytext; yylval.tipo = "char"; return TK_NUM; }
+{ yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "char"; return TK_NUM; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
