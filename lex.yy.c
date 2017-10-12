@@ -549,7 +549,7 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
 
-#line 18 "lexica.l"
+#line 19 "lexica.l"
 
 
 #line 556 "lex.yy.c"
@@ -637,82 +637,82 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 20 "lexica.l"
+#line 21 "lexica.l"
 {}
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 22 "lexica.l"
+#line 23 "lexica.l"
 {}
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 24 "lexica.l"
+#line 25 "lexica.l"
 {yylval.label = yytext; return TK_CAST;}
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 26 "lexica.l"
+#line 27 "lexica.l"
 {return TK_MAIN;}
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 28 "lexica.l"
+#line 29 "lexica.l"
 {return TK_TIPO_INT;}
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 30 "lexica.l"
+#line 31 "lexica.l"
 {yylval.label = yytext; yylval.tipo = "bool"; return TK_ID;}
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 32 "lexica.l"
+#line 33 "lexica.l"
 { return *yytext; }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 34 "lexica.l"
+#line 35 "lexica.l"
 { return *yytext; }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 36 "lexica.l"
+#line 37 "lexica.l"
 {return *yytext; }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 38 "lexica.l"
+#line 39 "lexica.l"
 {return *yytext; }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 40 "lexica.l"
+#line 41 "lexica.l"
 { yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "int"; return TK_NUM; }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 41 "lexica.l"
+#line 42 "lexica.l"
 { yylval.label = yytext; yylval.nomeVariavel = yytext; yylval.tipo = "id"; return TK_ID; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 42 "lexica.l"
+#line 43 "lexica.l"
 { yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "float"; return TK_NUM; }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 43 "lexica.l"
+#line 44 "lexica.l"
 { yylval.label = yytext; yylval.valor = yytext; yylval.tipo = "char"; return TK_NUM; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 45 "lexica.l"
+#line 46 "lexica.l"
 { *yytext; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 47 "lexica.l"
+#line 48 "lexica.l"
 ECHO;
 	YY_BREAK
 #line 719 "lex.yy.c"
@@ -1601,7 +1601,7 @@ int main()
 	return 0;
 	}
 #endif
-#line 47 "lexica.l"
+#line 48 "lexica.l"
 
 
 int yywrap(void){

@@ -15,6 +15,7 @@ CHAR \'({LETRA}|{NUM})\'
 ID {LETRA}({LETRA}|{NUM})*
 
 
+
 %%
 
 "\n"		{}
