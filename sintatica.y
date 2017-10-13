@@ -9,6 +9,8 @@
 
 using namespace std;
 
+FILE *out_file;
+
 struct atributos
 {
 	string label;
@@ -132,6 +134,7 @@ string conversaoImplicita(atributos E1, atributos E2, string operador, atributos
 %token TK_CHAR
 %token TK_MAIN TK_TIPO_INT
 %token TK_FIM TK_ERROR
+%token TK_PRINT
 
 %start S
 
@@ -148,13 +151,9 @@ string conversaoImplicita(atributos E1, atributos E2, string operador, atributos
 S 			: TK_TIPO_INT TK_MAIN '(' ')' BLOCO
 			{
 				cout << "/*Compilador FOCA*/\n" << "#include <iostream>\n#include<string.h>\n#include<stdio.h>\nint main(void)\n{\n" << $5.traducao << "\treturn 0;\n}" << endl;
-				for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
-					cout << mapaDeVariaveis.mapa[i].label << endl;
-					cout << mapaDeVariaveis.mapa[i].nomeVariavel << endl;
-					cout << mapaDeVariaveis.mapa[i].valor << endl;
-					cout << mapaDeVariaveis.mapa[i].tipo << endl;
-					cout << endl;
-				}
+				out_file = fopen("out.c", "w");
+				fprintf(out_file, "/*Compilador FOCA*/\n#include <iostream>\n#include <string.h>\n#include <stdio.h>\nusing namespace std;\nint main(void)\n{\n%s\treturn 0;\n}", $5.traducao.c_str());
+				fclose(out_file);
 			}
 			|
 			;
@@ -169,13 +168,29 @@ COMANDOS	: COMANDO COMANDOS
 			}
 			|
 			;
-COMANDO 	: E ';'{ }
+COMANDO 	: E ';'{
+				cout << $1.label << endl;
+ 			}
+			| TK_PRINT '(' TK_ID ')' ';'
+			{
+				for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
+					if(mapaDeVariaveis.mapa[i].nomeVariavel == $3.nomeVariavel){
+						$$.traducao = "\tcout << " + mapaDeVariaveis.mapa[i].label + " << endl;\n";
+						break;
+					}
+				}
+			}
 			;
 			
 E 			: '(' E ')'
 			{
 				$$ = $2;
-			} 
+			}
+			| '-' E
+			{
+				$$ = $2;
+				$$.sinal = "-";
+			}
 			| E '+' E
 			{
 				conversaoImplicita($1, $3, "+", &$$);
@@ -250,14 +265,16 @@ E 			: '(' E ')'
 						}
 					}
 				}else{
-					$1.label = gerarNome();
-					$1.tipo = $3.tipo;
-					$$.traducao = $3.traducao + "\t" + $1.tipo + " " + $1.label + ";\n\t" + $1.label + " = " + $3.label + ";\n";
-					atributos temp = $1;
+					$$.label = gerarNome();
+					$$.tipo = $3.tipo;
+					if($3.sinal == "-")
+						$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = -" + $3.label + ";\n";
+					else
+						$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
+					atributos temp = $$;
 					temp.valor = $3.valor;
-					
 					mapaDeVariaveis.addVariavel(temp);
-				}			
+				}		
 			}
 			| T
 			{

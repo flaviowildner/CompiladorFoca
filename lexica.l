@@ -30,6 +30,8 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "true"|"false"		{yylval.label = yytext; yylval.tipo = "bool"; return TK_ID;}
 
+"print" {yylval.label = yytext; return TK_PRINT; }
+
 [(){}[\];,]	{ return *yytext; }
 
 [+\-*/?]		{ return *yytext; }

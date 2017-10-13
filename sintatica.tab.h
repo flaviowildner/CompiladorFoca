@@ -47,7 +47,8 @@
      TK_MAIN = 263,
      TK_TIPO_INT = 264,
      TK_FIM = 265,
-     TK_ERROR = 266
+     TK_ERROR = 266,
+     TK_PRINT = 267
    };
 #endif
 
