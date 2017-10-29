@@ -17,22 +17,18 @@ struct atributos
 	string nomeVariavel;
 	string traducao;
 	string tipo;
-	string valor;
-	string sinal;
 };
 
+  
 int yylex(void);
 void yyerror(string);
 
-static class mapaDeVariaveis{
+class mapaDeVariaveis{
 	public:
 		vector<atributos> mapa;
-		void addVariavel(struct atributos E);
-} mapaDeVariaveis;
+};
 
-void mapaDeVariaveis::addVariavel(struct atributos E){
-	mapa.push_back(E);
-}
+vector<mapaDeVariaveis> mapaDeMapas;
 
 string gerarNome(){
 	static int numeroVariaveis = 0;
@@ -42,104 +38,55 @@ string gerarNome(){
 	return "var_" + stringNumeroVariaveis.str();
 }
 
-string conversaoImplicita(atributos E1, atributos E2, string operador, atributos *$$){
-	if(E1.tipo == "bool" || E2.tipo == "bool"){
-		yyerror("Error: Operação com tipo boolean é invalida.");
-	}
-	if(E1.tipo == "id" || E2.tipo == "id"){
-		if(E1.tipo == "id"){
-			for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
-				if(mapaDeVariaveis.mapa[i].nomeVariavel == E1.nomeVariavel){
-					if(E1.sinal == "-"){
-						E1 = mapaDeVariaveis.mapa[i];
-						E1.label = "-" + E1.label;
-					}else{
-						E1 = mapaDeVariaveis.mapa[i];
-					}
-					
-					E1.traducao = "";
-					break;
-				}else if(i >= mapaDeVariaveis.mapa.size() - 1){
-					yyerror("Error: Variavel nao existe.\n\n");
-				}
-					
-			}
-		}
-		if(E2.tipo == "id"){
-			for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
-				if(mapaDeVariaveis.mapa[i].nomeVariavel == E2.nomeVariavel){
-					E2 = mapaDeVariaveis.mapa[i];
-					E2.traducao = "";
-					break;
-				}else if(i >= mapaDeVariaveis.mapa.size() - 1)
-					yyerror("Error: Variavel nao existe.");
-			}
-		}
-	}
-	
-	if(operador == "<" || operador == ">" || operador == ">=" || operador == "<=" || operador == "==" || operador == "!=" || operador == "&&" || operador == "||"){
-		if(E1.tipo == E2.tipo){
-				$$->label = gerarNome();
-				$$->tipo = "bool";
-				$$->traducao = E1.traducao + E2.traducao + "\t" + $$->tipo + " " + $$->label + ";\n\t" + $$->label + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
-		}else{
-			if(E1.tipo == "int"){
-				string tempCastVarLabel = gerarNome();
-				string builder = "\t" + E2.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + E2.tipo + ")" + E1.label + ";\n";
-				E1.label = tempCastVarLabel;
-				$$->label = gerarNome();
-				$$->tipo = "bool";
-				$$->traducao = E1.traducao + E2.traducao + builder + "\t" + $$->tipo + " " + $$->label + ";\n\t" + $$->label + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
-			}else{
-				string tempCastVarLabel = gerarNome();
-				string builder = "\t" + E1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + E1.tipo + ")" + E2.label + ";\n";
-				E2.label = tempCastVarLabel;
-				$$->label = gerarNome();
-				$$->tipo = "bool";
-				$$->traducao = E1.traducao + E2.traducao + builder + "\t" + $$->tipo + " " + $$->label + ";\n\t" + $$->label + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
-			}
-		}
-	}
-
-	if(operador == "+" || operador == "-" || operador == "*" || operador == "/"){
-		if(E1.tipo == E2.tipo){
-				$$->label = gerarNome();
-				$$->traducao = E1.traducao + E2.traducao + "\t" + E1.tipo + " " + $$->label + ";\n\t" + $$->label + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
-				$$->tipo = E1.tipo;
-		}else{
-			if(E1.tipo == "int"){
-				string tempCastVarLabel = gerarNome();
-				string builder = "\t" + E2.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + E2.tipo + ")" + E1.label + ";\n";
-				E1.label = tempCastVarLabel;
-				$$->label = gerarNome();
-				$$->tipo = E2.tipo;
-				$$->traducao = E1.traducao + E2.traducao + builder + "\t" + $$->tipo + " " + $$->label + ";\n\t" + $$->label + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
-			}else{
-				string tempCastVarLabel = gerarNome();
-				string builder = "\t" + E1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + E1.tipo + ")" + E2.label + ";\n";
-				E2.label = tempCastVarLabel;
-				$$->label = gerarNome();
-				$$->tipo = E1.tipo;
-				$$->traducao = E1.traducao + E2.traducao + builder + "\t" + $$->tipo + " " + $$->label + ";\n\t" + $$->label + " = " + E1.label + " " + operador + " " + E2.label + ";\n";
-			}
-		}
-	}
+string gerarRotulo(){
+	static int numeroRotulos = 0;
+	numeroRotulos++;
+	ostringstream stringNumeroVariaveis;
+	stringNumeroVariaveis << numeroRotulos;
+	return "rotulo_" + stringNumeroVariaveis.str();
 }
+
+
+atributos buscaVariavel(atributos alvo){
+	atributos retorno;
+	for(int i=mapaDeMapas.size() - 1;i>=0;i--){
+		for(int j=0;j<mapaDeMapas[i].mapa.size();j++){
+			if(mapaDeMapas[i].mapa[j].nomeVariavel == alvo.nomeVariavel){
+				retorno = mapaDeMapas[i].mapa[j];
+				retorno.traducao = "";
+				return retorno;
+			}else if(i == 0 && j == mapaDeMapas[i].mapa.size() - 1){
+				yyerror("Error-> Variavel nao declarada");
+			}
+		}
+	}
+	return retorno;
+}
+
+
 %}
 
+
+
+
+%token TK_ARITMETICO
+%token TK_RELACIONAL
+%token TK_LOGICO
 %token TK_CAST
 %token TK_ID
 %token TK_BOOL
 %token TK_NUM
 %token TK_CHAR
+%token TK_STRING
 %token TK_MAIN TK_TIPO_INT
 %token TK_FIM TK_ERROR
 %token TK_PRINT
+%token TK_IF
 
 %start S
 
 
-%right '='
+%left '='
 %left "||" "&&"
 %left "==" "!="
 %left '<' '>' ">=" "<="
@@ -148,37 +95,89 @@ string conversaoImplicita(atributos E1, atributos E2, string operador, atributos
 
 
 %%
-S 			: TK_TIPO_INT TK_MAIN '(' ')' BLOCO
+S 			: GLOBAL COMANDOS FIM_GLOBAL
 			{
-				cout << "/*Compilador FOCA*/\n" << "#include <iostream>\n#include<string.h>\n#include<stdio.h>\nint main(void)\n{\n" << $5.traducao << "\treturn 0;\n}" << endl;
-				out_file = fopen("out.c", "w");
-				fprintf(out_file, "/*Compilador FOCA*/\n#include <iostream>\n#include <string.h>\n#include <stdio.h>\nusing namespace std;\nint main(void)\n{\n%s\treturn 0;\n}", $5.traducao.c_str());
+				cout << "/*Compilador GambiArt*/\n" << "#include <iostream>\n#include<string.h>\n#include<stdio.h>\nint main(void)\n{\n" << $2.traducao << "\treturn 0;\n}" << endl;
+				out_file = fopen("out.cpp", "w");
+				fprintf(out_file, "/*Compilador GambiArt*/\n#include <iostream>\n#include <string.h>\n#include <stdio.h>\nusing namespace std;\nint main(void)\n{\n%s\treturn 0;\n}", $2.traducao.c_str());
 				fclose(out_file);
 			}
 			|
 			;
-BLOCO		: '{' COMANDOS '}'
+
+GLOBAL		:
+			{
+				mapaDeVariaveis mapa;
+				mapaDeMapas.push_back(mapa);
+			}
+			;
+
+FIM_GLOBAL	:
+			{
+				mapaDeMapas.pop_back();
+			}
+
+BLOCO		: EMPILHA COMANDOS EMPILHA
 			{
 				$$.traducao = $2.traducao;
 			}
 			;
-COMANDOS	: COMANDO COMANDOS
-			{ 
+
+
+EMPILHA		: '{'
+			{
+				mapaDeVariaveis mapa;
+				mapaDeMapas.push_back(mapa);
+			}
+			| '}'
+			{
+				mapaDeMapas.pop_back();
+			}
+			;
+
+COMANDOS	: COMANDOS COMANDO
+			{
 				$$.traducao = $1.traducao + $2.traducao;
 			}
-			|
-			;
-COMANDO 	: E ';'{
-				cout << $1.label << endl;
- 			}
-			| TK_PRINT '(' TK_ID ')' ';'
+			| 
 			{
-				for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
-					if(mapaDeVariaveis.mapa[i].nomeVariavel == $3.nomeVariavel){
-						$$.traducao = "\tcout << " + mapaDeVariaveis.mapa[i].label + " << endl;\n";
-						break;
-					}
-				}
+				$$.traducao = "";
+			}
+			;
+
+
+COMANDO 	: E ';'
+			| ATRIBUICAO ';'
+			| PRINT ';'
+			| BLOCO
+			| IF
+			;
+
+
+IF			: TK_IF '(' E ')' BLOCO
+			{
+				string rotulo_inicio = gerarRotulo();
+				string rotulo_fim = gerarRotulo();
+				$$.traducao = "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_inicio + ";\n\telse\n\t\tgoto " + rotulo_fim + ";\n\t" + rotulo_inicio + ":\n" + $5.traducao + "\t" + rotulo_fim + ":\n";
+			}
+			;
+
+
+ATRIBUICAO	: TK_ID '=' E
+			{
+				$$.label = gerarNome();
+				$$.tipo = $3.tipo;
+				$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
+				atributos temp = $$;
+				mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back(temp);
+			}
+			| TK_ID '=' TK_CHAR
+			{
+				$$ = $3;
+				$$.label = gerarNome();
+				$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
+				atributos temp = $$;
+				mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back(temp);
 			}
 			;
 			
@@ -186,235 +185,118 @@ E 			: '(' E ')'
 			{
 				$$ = $2;
 			}
-			| '-' E
+			| E TK_ARITMETICO E
+			{
+				if($1.tipo == $3.tipo){
+					$$.label = gerarNome();
+					$$.traducao = $1.traducao + $3.traducao + "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					$$.tipo = $1.tipo;
+				}else{
+					if($1.tipo == "int"){
+						string tempCastVarLabel = gerarNome();
+						string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
+						$1.label = tempCastVarLabel;
+						$$.label = gerarNome();
+						$$.tipo = $3.tipo;
+						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}else{
+						string tempCastVarLabel = gerarNome();
+						string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
+						$3.label = tempCastVarLabel;
+						$$.label = gerarNome();
+						$$.tipo = $1.tipo;
+						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}
+				}
+			}
+			| E TK_RELACIONAL E
+			{
+				if($1.tipo == $3.tipo){
+					$$.label = gerarNome();
+					$$.traducao = $1.traducao + $3.traducao + "\tbool" + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					$$.tipo = "bool";
+				}else{
+					if($1.tipo == "int"){
+						string tempCastVarLabel = gerarNome();
+						string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
+						$1.label = tempCastVarLabel;
+						$$.label = gerarNome();
+						$$.tipo = "bool";
+						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}else{
+						string tempCastVarLabel = gerarNome();
+						string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
+						$1.label = tempCastVarLabel;
+						$$.label = gerarNome();
+						$$.tipo = "bool";
+						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}
+				}
+			}
+			| E TK_LOGICO E
+			{
+				if($1.tipo == $3.tipo){
+					$$.label = gerarNome();
+					$$.traducao = $1.traducao + $3.traducao + "\tbool" + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					$$.tipo = "bool";
+				}else{
+					if($1.tipo == "int"){
+						string tempCastVarLabel = gerarNome();
+						string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
+						$1.label = tempCastVarLabel;
+						$$.label = gerarNome();
+						$$.tipo = "bool";
+						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}else{
+						string tempCastVarLabel = gerarNome();
+						string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
+						$1.label = tempCastVarLabel;
+						$$.label = gerarNome();
+						$$.tipo = "bool";
+						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}
+				}
+			}
+			| TK_CAST E
 			{
 				$$ = $2;
-				$$.sinal = "-";
+				$$.label = gerarNome();
+				
+				if($1.label == "(float)"){
+					$$.traducao = $2.traducao + "\tfloat " + $$.label + ";\n\t" + $$.label + " = (float)" + $2.label + ";\n";
+					$$.tipo = "float";
+				}else if($1.label == "(int)"){
+					$$.traducao = "\tint " + $$.label + " = " + $2.label + ";\n";
+					$$.tipo = "int";
+				}
 			}
-			| E '+' E
-			{
-				conversaoImplicita($1, $3, "+", &$$);
-			}
-			| E '-' E
-			{
-				conversaoImplicita($1, $3, "-", &$$);
-			}
-			| E '*' E
-			{
-				conversaoImplicita($1, $3, "*", &$$);
-			}
-			| E '/' E
-			{
-				conversaoImplicita($1, $3, "/", &$$);
-			}
-			| E '>' E
-			{
-				conversaoImplicita($1, $3, ">", &$$);
-			}
-			| E '<' E
-			{
-				conversaoImplicita($1, $3, "<", &$$);
-			}
-			| E '>' '=' E
-			{
-				conversaoImplicita($1, $4, ">=", &$$);
-			}
-			| E '<' '=' E
-			{
-				conversaoImplicita($1, $4, "<=", &$$);
-			}
-			| E '=' '=' E
-			{
-				conversaoImplicita($1, $4, "==", &$$);
-			}
-			| E '!' '=' E
-			{
-				conversaoImplicita($1, $4, "!=", &$$);
-			}
-			| E '&' '&' E
-			{
-				conversaoImplicita($1, $4, "&&", &$$);
-			}
-			| E '|' '|' E
-			{
-				conversaoImplicita($1, $4, "||", &$$);
-			}
-			| E '%' '%' E
-			{
-				string tempNome = gerarNome();
-				string tempNome2 = gerarNome();
-				$$.traducao = $1.traducao + $4.traducao + "\t" + tempNome + " = " + $1.label + " * " + $4.label + ";\n" + "\t" + tempNome2 + " = " + tempNome + " / 100;\n";
-				$$.label = tempNome2;
-			}
-			| T '=' E
-			{
-				if($3.tipo == "id"){
-					for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
-						if(mapaDeVariaveis.mapa[i].nomeVariavel == $3.nomeVariavel){
-							$3 = mapaDeVariaveis.mapa[i];
-							$1.label = gerarNome();
-							$1.tipo = $3.tipo;
-		
-							$$.traducao = "\t" + $3.tipo + " " + $1.label + ";\n\t" + $1.label + " = " + $3.label + ";\n";
-							
-
-							mapaDeVariaveis.addVariavel($1);
-							break;
-						}else if(i >= mapaDeVariaveis.mapa.size() - 1){
-							yyerror("Error-> Variavel nao declarada");
-						}
-					}
-				}else{
-					$$.label = gerarNome();
-					$$.tipo = $3.tipo;
-					if($3.sinal == "-")
-						$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = -" + $3.label + ";\n";
-					else
-						$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
-					atributos temp = $$;
-					temp.valor = $3.valor;
-					mapaDeVariaveis.addVariavel(temp);
-				}		
-			}
-			| T
+			| TK_NUM
 			{
 				$$ = $1;
+				$$.label = gerarNome();
+				$$.traducao = "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + ";\n";
 			}
-			;
-
-
-T 			: C F
+			| TK_ARITMETICO E
 			{
-				if($2.tipo == "id"){
-					$$ = $2;
-					for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
-						if(mapaDeVariaveis.mapa[i].nomeVariavel == $2.nomeVariavel){
-							if($1.label == "(float)"){
-								$$.label = gerarNome();
-								$$.traducao = "\tfloat " + $$.label + ";\n\t" + $$.label + " = " + "(float)" + mapaDeVariaveis.mapa[i].label + ";\n";
-								$$.tipo = "float";
-							}else if($1.label == "(int)"){
-								$$.traducao = "\tint " + $$.label + ";\n\t" + $$.label + " = " + "(int)" + mapaDeVariaveis.mapa[i].label + ";\n";
-								$$.tipo = "int";
-							}else{
-								$$.traducao = "\t" + $2.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $2.label + ";\n";
-							}
-							$2.label = "(float)" + $2.label;
-						}else if(i >= mapaDeVariaveis.mapa.size() - 1){
-							$$.traducao = "\t" + $2.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $2.label + ";\n";
-						}
-					}
-				}else{
+				if($1.traducao != "*" || $1.traducao != "/"){
 					$$ = $2;
 					$$.label = gerarNome();
-					
-					if($1.label == "(float)"){
-						$$.traducao = "\tfloat " + $$.label + ";\n\t" + $$.label + " = " + $2.label + ";\n";
-						$$.tipo = "float";
-					}else if($1.label == "(int)"){
-						$$.traducao = "\tint " + $$.label + " = " + $2.label + ";\n";
-						$$.tipo = "int";
-					}else{
-						$$.traducao = "\t" + $2.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $2.label + ";\n";
-					}
+					$$.traducao = $2.traducao + "\t" + $2.tipo + " " + $$.label + ";\n\t" + $$.label + " = -" + $2.label + ";\n";
 				}
-			}
-			| C '-' F
-			{
-				if($3.tipo == "id"){
-					$$ = $3;
-					for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
-						if(mapaDeVariaveis.mapa[i].nomeVariavel == $3.nomeVariavel){
-							if($1.label == "(float)"){
-								$$.label = gerarNome();
-								$$.traducao = "\tfloat " + $$.label + ";\n\t" + $$.label + " = " + "(float)-" + mapaDeVariaveis.mapa[i].label + ";\n";
-								$$.tipo = "float";
-							}else if($1.label == "(int)"){
-								$$.traducao = "\tint " + $$.label + ";\n\t" + $$.label + " = " + "(int)-" + mapaDeVariaveis.mapa[i].label + ";\n";
-								$$.tipo = "int";
-							}else{
-								$$.traducao = "\t" + $3.tipo + " " + $$.label + ";\n\t" + $$.label + " = -" + $3.label + ";\n";
-							}
-							break;
-						}else if(i >= mapaDeVariaveis.mapa.size() - 1){
-							$$.traducao = "\t" + $3.tipo + " " + $$.label + ";\n\t" + $$.label + " = -" + $3.label + ";\n";
-						}
-					}
-				}else{
-					$$ = $3;
-					$$.label = gerarNome();
-					
-					if($1.label == "(float)"){
-						$$.traducao = "\tfloat " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
-						$$.tipo = "float";
-					}else if($1.label == "(int)"){
-						$$.traducao = "\tint " + $$.label + " = " + $3.label + ";\n";
-						$$.tipo = "int";
-					}else{
-						$$.traducao = "\t" + $3.tipo + " " + $$.label + ";\n\t" + $$.label + " = -" + $3.label + ";\n";
-					}
-				}
-			}
-			| C '+' T
-			{
-				if($3.tipo == "id"){
-					$$ = $3;
-					for(int i=0;i<mapaDeVariaveis.mapa.size();i++){
-						if(mapaDeVariaveis.mapa[i].nomeVariavel == $3.nomeVariavel){
-							if($1.label == "(float)"){
-								$$.label = gerarNome();
-								$$.traducao = "\tfloat " + $$.label + ";\n\t" + $$.label + " = " + "(float)" + mapaDeVariaveis.mapa[i].label + ";\n";
-								$$.tipo = "float";
-							}else if($1.label == "(int)"){
-								$$.traducao = "\tint " + $$.label + ";\n\t" + $$.label + " = " + "(int)" + mapaDeVariaveis.mapa[i].label + ";\n";
-								$$.tipo = "int";
-							}else{
-								$$.traducao = "\t" + $3.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
-							}
-							$3.label = "(float)" + $3.label;
-							
-						}else if(i >= mapaDeVariaveis.mapa.size() - 1){
-							$$.traducao = "\t" + $3.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
-						}
-					}
-				}else{
-					$$ = $3;
-					$$.label = gerarNome();
-					
-					if($1.label == "(float)"){
-						$$.traducao = "\tfloat " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
-						$$.tipo = "float";
-					}else if($1.label == "(int)"){
-						$$.traducao = "\tint " + $$.label + " = " + $3.label + ";\n";
-						$$.tipo = "int";
-					}else{
-						$$.traducao = "\t" + $3.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
-					}
-				}
-			}
-			;
-
-F   		: TK_NUM
-			{
-				$$ = $1;
 			}
 			| TK_ID
 			{
-				$$ = $1;
+				$$ = buscaVariavel($1);
 			}
-			| TK_CHAR
-			{
-				$$ = $1;
-			}
-			|
 			;
 
-C 			: TK_CAST
+
+PRINT		: TK_PRINT '(' TK_ID ')'
 			{
-				$$ = $1;
+				$$.traducao = "\tcout << " + buscaVariavel($3).label + " << endl;\n"
 			}
-			|
 			;
+
 %%
 #include "lex.yy.c"
 int yyparse();
