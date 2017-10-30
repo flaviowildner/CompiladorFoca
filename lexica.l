@@ -31,13 +31,17 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "if"    {return TK_IF;}
 
+"else"  {return TK_ELSE;}
+
+"while" {return TK_WHILE;}
+
 "true"|"false"		{yylval.label = yytext; yylval.tipo = "bool"; return TK_BOOL;}
 
 "print" {yylval.label = yytext; return TK_PRINT; }
 
 "+"|"-"|"*"|"/"  {yylval.traducao = yytext; return TK_ARITMETICO;}
 
-"<"|">"|"<="|">="|"!="|"=="|"||"|"&&" {yylval.traducao = yytext; return TK_RELACIONAL;}
+"<"|">"|"<="|">="|"!="|"=="|"||"|"&&" {yylval.traducao = yytext; return TK_LR;}
 
 [(){}[\];,]	{ return *yytext; }
 

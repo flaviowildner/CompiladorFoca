@@ -38,6 +38,7 @@ string gerarNome(){
 	return "var_" + stringNumeroVariaveis.str();
 }
 
+
 string gerarRotulo(){
 	static int numeroRotulos = 0;
 	numeroRotulos++;
@@ -55,11 +56,14 @@ atributos buscaVariavel(atributos alvo){
 				retorno = mapaDeMapas[i].mapa[j];
 				retorno.traducao = "";
 				return retorno;
-			}else if(i == 0 && j == mapaDeMapas[i].mapa.size() - 1){
-				yyerror("Error-> Variavel nao declarada");
+			}else if((i == 0) && (j == mapaDeMapas[i].mapa.size() - 1)){
+				retorno.label = "null";
+				return retorno;
+				//yyerror("Error-> Variavel nao declarada");
 			}
 		}
 	}
+	retorno.label = "null";
 	return retorno;
 }
 
@@ -68,10 +72,8 @@ atributos buscaVariavel(atributos alvo){
 
 
 
-
 %token TK_ARITMETICO
-%token TK_RELACIONAL
-%token TK_LOGICO
+%token TK_LR
 %token TK_CAST
 %token TK_ID
 %token TK_BOOL
@@ -82,6 +84,12 @@ atributos buscaVariavel(atributos alvo){
 %token TK_FIM TK_ERROR
 %token TK_PRINT
 %token TK_IF
+%token TK_ELSE
+%token TK_WHILE
+%token TK_FOR
+
+%nonassoc TK_IF
+%nonassoc TK_ELSE
 
 %start S
 
@@ -149,27 +157,78 @@ COMANDOS	: COMANDOS COMANDO
 COMANDO 	: E ';'
 			| ATRIBUICAO ';'
 			| PRINT ';'
-			| BLOCO
 			| IF
+			| LR ';'
+			| WHILE
 			;
 
 
-IF			: TK_IF '(' E ')' BLOCO
+IF			: TK_IF '(' LR ')' BLOCO
 			{
 				string rotulo_inicio = gerarRotulo();
 				string rotulo_fim = gerarRotulo();
-				$$.traducao = "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_inicio + ";\n\telse\n\t\tgoto " + rotulo_fim + ";\n\t" + rotulo_inicio + ":\n" + $5.traducao + "\t" + rotulo_fim + ":\n";
+				$$.traducao = $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_inicio + ";\n\telse\n\t\tgoto " + rotulo_fim + ";\n\t" + rotulo_inicio + ":\n" + $5.traducao + "\t" + rotulo_fim + ":\n";
+			}
+			| TK_IF '(' LR ')' BLOCO TK_ELSE BLOCO
+			{
+				string rotulo_if = gerarRotulo();
+				string rotulo_else = gerarRotulo();
+				string rotulo_fim = gerarRotulo();
+				$$.traducao = $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_if + ";\n\telse\n\t\tgoto " + rotulo_else + ";\n\t" + rotulo_if + ":\n" + $5.traducao + "\tgoto " + rotulo_fim + ";\n\t" + rotulo_else + ":\n" + $7.traducao + "\t" + rotulo_fim + ":\n";
+			}
+			;
+			
+WHILE		: TK_WHILE '(' LR ')' BLOCO
+			{
+				string rotulo_while = gerarRotulo();
+				string rotulo_bloco = gerarRotulo();
+				string rotulo_fim = gerarRotulo();
+				$$.traducao = "\t" + rotulo_while + ":\n" + $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\telse\n\t\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $5.traducao + "\tgoto " + rotulo_while + ";\n\t" + rotulo_fim + ":\n";
+			}
+			;
+
+
+LR			: E TK_LR E
+			{
+				if($1.tipo == $3.tipo){
+					$$.label = gerarNome();
+					$$.traducao = $1.traducao + $3.traducao + "\tbool" + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					$$.tipo = "bool";
+				}else{
+					if($1.tipo == "int"){
+						string tempCastVarLabel = gerarNome();
+						string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
+						$1.label = tempCastVarLabel;
+						$$.label = gerarNome();
+						$$.tipo = "bool";
+						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}else{
+						string tempCastVarLabel = gerarNome();
+						string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
+						$1.label = tempCastVarLabel;
+						$$.label = gerarNome();
+						$$.tipo = "bool";
+						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}
+				}
 			}
 			;
 
 
 ATRIBUICAO	: TK_ID '=' E
 			{
-				$$.label = gerarNome();
-				$$.tipo = $3.tipo;
-				$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
-				atributos temp = $$;
-				mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back(temp);
+				$$ = buscaVariavel($1);				
+				if($$.label == "null"){
+					$$.label = gerarNome();
+					$$.nomeVariavel = $1.nomeVariavel;
+					$$.tipo = $3.tipo;
+					$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
+					atributos temp = $$;
+					mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back(temp);
+				}else{
+					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
+				}
+				
 			}
 			| TK_ID '=' TK_CHAR
 			{
@@ -181,6 +240,7 @@ ATRIBUICAO	: TK_ID '=' E
 			}
 			;
 			
+
 E 			: '(' E ')'
 			{
 				$$ = $2;
@@ -205,54 +265,6 @@ E 			: '(' E ')'
 						$3.label = tempCastVarLabel;
 						$$.label = gerarNome();
 						$$.tipo = $1.tipo;
-						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-					}
-				}
-			}
-			| E TK_RELACIONAL E
-			{
-				if($1.tipo == $3.tipo){
-					$$.label = gerarNome();
-					$$.traducao = $1.traducao + $3.traducao + "\tbool" + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-					$$.tipo = "bool";
-				}else{
-					if($1.tipo == "int"){
-						string tempCastVarLabel = gerarNome();
-						string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
-						$1.label = tempCastVarLabel;
-						$$.label = gerarNome();
-						$$.tipo = "bool";
-						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-					}else{
-						string tempCastVarLabel = gerarNome();
-						string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
-						$1.label = tempCastVarLabel;
-						$$.label = gerarNome();
-						$$.tipo = "bool";
-						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-					}
-				}
-			}
-			| E TK_LOGICO E
-			{
-				if($1.tipo == $3.tipo){
-					$$.label = gerarNome();
-					$$.traducao = $1.traducao + $3.traducao + "\tbool" + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-					$$.tipo = "bool";
-				}else{
-					if($1.tipo == "int"){
-						string tempCastVarLabel = gerarNome();
-						string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
-						$1.label = tempCastVarLabel;
-						$$.label = gerarNome();
-						$$.tipo = "bool";
-						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-					}else{
-						string tempCastVarLabel = gerarNome();
-						string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
-						$1.label = tempCastVarLabel;
-						$$.label = gerarNome();
-						$$.tipo = "bool";
 						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
 					}
 				}
@@ -287,6 +299,14 @@ E 			: '(' E ')'
 			| TK_ID
 			{
 				$$ = buscaVariavel($1);
+				if($$.label == "null"){
+					yyerror("Error-> Variavel nao declarada");
+				}
+			}
+			| TK_BOOL
+			{
+				$$ = $1;
+				$$.traducao = "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + ";\n";
 			}
 			;
 
