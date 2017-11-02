@@ -35,11 +35,25 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "while" {return TK_WHILE;}
 
+"for"   {return TK_FOR;}
+
+"do"    {return TK_DO;}
+
+"switch"    {return TK_SWITCH;}
+
+"break" {return TK_BREAK;}
+
+"continue"  {return TK_CONTINUE;}
+
 "true"|"false"		{yylval.label = yytext; yylval.tipo = "bool"; return TK_BOOL;}
 
 "print" {yylval.label = yytext; return TK_PRINT; }
 
 "+"|"-"|"*"|"/"  {yylval.traducao = yytext; return TK_ARITMETICO;}
+
+"++"|"--"   {yylval.traducao = yytext; return TK_INCREMENTO;}
+
+"+="|"-="|"*="|"/=" {yylval.traducao = yytext; return TK_INCREM_ATRIB_ABREV;}
 
 "<"|">"|"<="|">="|"!="|"=="|"||"|"&&" {yylval.traducao = yytext; return TK_LR;}
 
@@ -53,7 +67,7 @@ ID {LETRA}({LETRA}|{NUM})*
 {ID}		{ yylval.label = yytext; yylval.nomeVariavel = yytext; yylval.tipo = "id"; return TK_ID; }
 {REAL}		{ yylval.label = yytext; yylval.tipo = "float"; return TK_NUM; }
 {CHAR}      { yylval.label = yytext; yylval.tipo = "char"; return TK_CHAR; }
-{STRING}	{ yylval.label =  yytext; yylval.tipo = "char*"; return TK_STRING;}
+{STRING}	{ yylval.label = yytext; yylval.tipo = "char*"; return TK_STRING; }
 .			{ *yytext; }
 
 %%

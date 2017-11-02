@@ -1,12 +1,8 @@
-a = 0;
-while(a < 10){
-    a = a + 1;
-    if(a == 6){
-        a = 10;
-        print(a);
-    }else{
-        print(a);
+a=0;
+do{
+    a++;
+    if(a == 5){
+       continue;
     }
-}
-a = 2 * a;
-print(a);
+    print(a);
+}while(a < 10);
