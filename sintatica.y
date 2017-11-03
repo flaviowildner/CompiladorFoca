@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <vector>
-#include <string>
+#include <string.h>
 #include <sstream>
 
 #define YYSTYPE atributos
@@ -11,7 +11,7 @@ using namespace std;
 
 FILE *out_file;
 
-string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\nusing namespace std;\nint main(void)\n{\n";
+string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nusing namespace std;\nint main(void)\n{\n";
 string fim_cabecalho = "\treturn 0;\n}";
 
 struct atributos
@@ -20,6 +20,7 @@ struct atributos
 	string nomeVariavel;
 	string traducao;
 	string tipo;
+	int tamanho;
 };
 
   
@@ -195,6 +196,7 @@ COMANDO 	: E ';'
 			| FOR
 			| BREAK ';'
 			| CONTINUE ';'
+			| STRING ';'
 			;
 
 BREAK		: TK_BREAK
@@ -316,6 +318,20 @@ ATRIBUICAO	: TK_ID '=' E
 				}
 				
 			}
+			| TK_ID '=' STRING
+			{
+				$$ = buscaVariavel($1);				
+				if($$.label == "null"){
+					$$.label = gerarNome();
+					$$.nomeVariavel = $1.nomeVariavel;
+					$$.tipo = $3.tipo;
+					$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
+					atributos temp = $$;
+					mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back(temp);
+				}else{
+					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
+				}
+			}
 			| TK_ID TK_INCREMENTO
 			{
 				$$ = buscaVariavel($1);				
@@ -411,14 +427,26 @@ E 			: '(' E ')'
 				$$.label = gerarNome();
 				$$.traducao = "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + ";\n";
 			}
+			;
+
+STRING		: STRING TK_ARITMETICO STRING
+			{
+				$$.label = $1.label;
+				$$.tamanho = $1.tamanho + $3.tamanho - 1;
+				ostringstream convert;
+				convert << $$.tamanho;
+				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = (char*)realloc(" + $$.label + ", " + convert.str() + ");\n\tstrcat(" + $1.label + "," + $3.label + ");\n\tfree(" + $3.label + ");\n";
+				$$.tipo = $1.tipo;
+			}
 			| TK_STRING
 			{
 				$$ = $1;
-				$$.label = $1.label.substr(1, $1.label.size() - 2);
+				$$.label = $1.label.substr(1, $1.label.size() - 1);
 				ostringstream convert;
 				convert << $$.label.size();
+				$$.tamanho = $$.label.size();
 				$$.label = gerarNome();
-				$$.traducao = "\tchar* " + $$.label + ";\n\t" + $$.label + " = (char*)malloc(" + convert.str() + " * sizeof(char));\n\t" + $$.label + " = " + $1.label + ";\n";
+				$$.traducao = "\tchar* " + $$.label + ";\n\t" + $$.label + " = (char*)malloc(" + convert.str() + " * sizeof(char));\n\tstrcpy(" + $$.label + ", " + $1.label + ");\n";
 			}
 			;
 

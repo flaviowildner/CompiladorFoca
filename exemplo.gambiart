@@ -1,8 +1,2 @@
-a=0;
-do{
-    a++;
-    if(a == 5){
-       continue;
-    }
-    print(a);
-}while(a < 10);
+a = "teste" + "123" + "456";
+print(a);
