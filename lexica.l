@@ -41,6 +41,10 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "switch"    {return TK_SWITCH;}
 
+"case"    {return TK_CASE;}
+
+"default" {return TK_DEFAULT;}
+
 "break" {return TK_BREAK;}
 
 "continue"  {return TK_CONTINUE;}
@@ -57,7 +61,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "<"|">"|"<="|">="|"!="|"=="|"||"|"&&" {yylval.traducao = yytext; return TK_LR;}
 
-[(){}[\];,]	{ return *yytext; }
+[(){}[\];,:]	{ return *yytext; }
 
 [&|%]	{return *yytext; }
 

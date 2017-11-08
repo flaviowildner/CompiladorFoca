@@ -1,2 +1,15 @@
-a = "teste" + "123" + "456";
-print(a);
+a = 10;
+out = "AA";
+out2 = "BB";
+
+if(a == 10){
+    print(out);
+}else{
+    print(out2);
+}
+
+if(a == 12){
+    print(out);
+}else{
+    print(out2);
+}

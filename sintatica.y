@@ -80,6 +80,9 @@ atributos buscaVariavel(atributos alvo){
 
 
 
+%token TK_SWITCH 
+%token TK_CASE 
+%token TK_DEFAULT
 %token TK_ARITMETICO
 %token TK_LR
 %token TK_CAST
@@ -96,7 +99,6 @@ atributos buscaVariavel(atributos alvo){
 %token TK_WHILE
 %token TK_FOR
 %token TK_DO
-%token TK_SWITCH
 %token TK_INCREMENTO
 %token TK_INCREM_ATRIB_ABREV
 %token TK_BREAK TK_CONTINUE
@@ -127,7 +129,6 @@ S 			: GLOBAL COMANDOS FIM_GLOBAL
 				fprintf(out_file, "%s%s%s", cabecalho.c_str(), $2.traducao.c_str(), fim_cabecalho.c_str());
 				fclose(out_file);
 			}
-			|
 			;
 
 GLOBAL		:
@@ -155,7 +156,7 @@ EMPILHA		:
 			}
 			;
 
-EMPILHA_LOOP :
+EMPILHA_QUEBRAVEL :
 			{
 				mapaDeVariaveis mapa;
 				mapa.rotulo_condicao = gerarRotulo();
@@ -185,7 +186,6 @@ COMANDOS	: COMANDOS COMANDO
 			}
 			;
 
-
 COMANDO 	: E ';'
 			| ATRIBUICAO ';'
 			| PRINT ';'
@@ -194,9 +194,9 @@ COMANDO 	: E ';'
 			| WHILE
 			| DO
 			| FOR
+			| SWITCH
 			| BREAK ';'
 			| CONTINUE ';'
-			| STRING ';'
 			;
 
 BREAK		: TK_BREAK
@@ -222,6 +222,69 @@ CONTINUE	: TK_CONTINUE
 			;
 
 
+SWITCH		: TK_SWITCH EMPILHA_QUEBRAVEL '(' SWITCH_COND ')' '{' SWITCH_CASES '}'
+			{
+				$$.traducao = $4.traducao + $7.traducao + "\t" + mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim + ":\n";
+				mapaDeMapas.pop_back();
+			}
+			;
+
+
+SWITCH_COND : TK_ID
+			{
+				$1 = buscaVariavel($1);
+				if($1.label == "null"){
+					yyerror("Error-> Variavel nao declarada");
+				}
+				mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back($1);
+			}
+			;
+
+
+SWITCH_CASES : CASE SWITCH_CASES
+			{
+				$$.traducao = $1.traducao + $2.traducao;
+			}
+			| CASE
+			{
+				$$.traducao = $1.traducao;
+			}
+			;
+
+
+CASE		: TK_CASE CASE_VALOR ':' EMPILHA COMANDOS
+			{
+				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim;
+				$$.traducao = $2.traducao + "\tif(" + mapaDeMapas[mapaDeMapas.size() - 2].mapa[0].label + " == " + $2.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\telse\n\t\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $5.traducao + "\t" + rotulo_fim + ":\n";
+				mapaDeMapas.pop_back();
+			}
+			;
+
+
+CASE_VALOR	: TK_NUM
+			{
+				$$ = $1;
+				$$.label = gerarNome();
+				$$.traducao = "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + ";\n";
+			}
+			| TK_ID
+			{
+				$$ = buscaVariavel($1);
+				if($$.label == "null"){
+					yyerror("Error-> Variavel nao declarada");
+				}
+			}
+			| TK_CHAR
+			{
+				$$ = $1;
+				$$.label = gerarNome();
+				$$.traducao = "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + ";\n";
+			}
+			;
+
+
+
 IF			:  TK_IF '(' LR ')' EMPILHA BLOCO
 			{
 				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
@@ -240,7 +303,7 @@ IF			:  TK_IF '(' LR ')' EMPILHA BLOCO
 			}
 			;
 			
-WHILE		: TK_WHILE '(' LR ')' EMPILHA_LOOP BLOCO
+WHILE		: TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL BLOCO
 			{
 				string rotulo_condicao = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_condicao;
 				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
@@ -251,7 +314,7 @@ WHILE		: TK_WHILE '(' LR ')' EMPILHA_LOOP BLOCO
 			}
 			;
 
-DO			: TK_DO EMPILHA_LOOP BLOCO TK_WHILE '(' LR ')' ';'
+DO			: TK_DO EMPILHA_QUEBRAVEL BLOCO TK_WHILE '(' LR ')' ';'
 			{
 				string rotulo_condicao = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_condicao;
 				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
@@ -262,7 +325,7 @@ DO			: TK_DO EMPILHA_LOOP BLOCO TK_WHILE '(' LR ')' ';'
 			}
 			;
 
-FOR			: TK_FOR '(' EMPILHA_LOOP ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
+FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
 			{
 				string rotulo_condicao = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_condicao;
 				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
@@ -301,8 +364,6 @@ LR			: E TK_LR E
 			}
 			;
 
-
-
 ATRIBUICAO	: TK_ID '=' E
 			{
 				$$ = buscaVariavel($1);				
@@ -310,6 +371,7 @@ ATRIBUICAO	: TK_ID '=' E
 					$$.label = gerarNome();
 					$$.nomeVariavel = $1.nomeVariavel;
 					$$.tipo = $3.tipo;
+					$$.tamanho = $3.tamanho;
 					$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
 					atributos temp = $$;
 					mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back(temp);
@@ -318,20 +380,7 @@ ATRIBUICAO	: TK_ID '=' E
 				}
 				
 			}
-			| TK_ID '=' STRING
-			{
-				$$ = buscaVariavel($1);				
-				if($$.label == "null"){
-					$$.label = gerarNome();
-					$$.nomeVariavel = $1.nomeVariavel;
-					$$.tipo = $3.tipo;
-					$$.traducao = $3.traducao + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $3.label + ";\n";
-					atributos temp = $$;
-					mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back(temp);
-				}else{
-					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
-				}
-			}
+
 			| TK_ID TK_INCREMENTO
 			{
 				$$ = buscaVariavel($1);				
@@ -351,7 +400,6 @@ ATRIBUICAO	: TK_ID '=' E
 				}
 			}
 			;
-			
 
 E 			: '(' E ')'
 			{
@@ -359,25 +407,36 @@ E 			: '(' E ')'
 			}
 			| E TK_ARITMETICO E
 			{
-				if($1.tipo == $3.tipo){
+				if($1.tipo == "char*" || $3.tipo == "char*"){
+					$$.tamanho = $1.tamanho + $3.tamanho - 1;
+					$$.tipo = "char*";
 					$$.label = gerarNome();
-					$$.traducao = $1.traducao + $3.traducao + "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					ostringstream convert;
+					convert << $$.tamanho;
+					$$.traducao = $1.traducao + $3.traducao + "\tchar* " + $$.label + ";\n\t" + $$.label + " = (char*)malloc(" + convert.str() + " * sizeof(char)" + ");\n\t" + $$.label + "[0] = 0;\n" + "\tstrcat(" + $$.label + "," + $1.label + ");\n\tstrcat(" + $$.label + "," + $3.label + ");\n";
 					$$.tipo = $1.tipo;
-				}else{
-					if($1.tipo == "int"){
-						string tempCastVarLabel = gerarNome();
-						string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
-						$1.label = tempCastVarLabel;
+				}
+				else{
+					if($1.tipo == $3.tipo){
 						$$.label = gerarNome();
-						$$.tipo = $3.tipo;
-						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-					}else{
-						string tempCastVarLabel = gerarNome();
-						string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
-						$3.label = tempCastVarLabel;
-						$$.label = gerarNome();
+						$$.traducao = $1.traducao + $3.traducao + "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
 						$$.tipo = $1.tipo;
-						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+					}else{
+						if($1.tipo == "int"){
+							string tempCastVarLabel = gerarNome();
+							string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
+							$1.label = tempCastVarLabel;
+							$$.label = gerarNome();
+							$$.tipo = $3.tipo;
+							$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+						}else{
+							string tempCastVarLabel = gerarNome();
+							string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
+							$3.label = tempCastVarLabel;
+							$$.label = gerarNome();
+							$$.tipo = $1.tipo;
+							$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+						}
 					}
 				}
 			}
@@ -427,17 +486,6 @@ E 			: '(' E ')'
 				$$.label = gerarNome();
 				$$.traducao = "\t" + $1.tipo + " " + $$.label + ";\n\t" + $$.label + " = " + $1.label + ";\n";
 			}
-			;
-
-STRING		: STRING TK_ARITMETICO STRING
-			{
-				$$.label = $1.label;
-				$$.tamanho = $1.tamanho + $3.tamanho - 1;
-				ostringstream convert;
-				convert << $$.tamanho;
-				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = (char*)realloc(" + $$.label + ", " + convert.str() + ");\n\tstrcat(" + $1.label + "," + $3.label + ");\n\tfree(" + $3.label + ");\n";
-				$$.tipo = $1.tipo;
-			}
 			| TK_STRING
 			{
 				$$ = $1;
@@ -461,6 +509,7 @@ PRINT		: TK_PRINT '(' TK_ID ')'
 			}
 			;
 
+			
 %%
 #include "lex.yy.c"
 int yyparse();

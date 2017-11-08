@@ -1,0 +1,9 @@
+a = 5;
+out = "AA";
+out2 = "BB";
+switch(a){
+    case 2:
+        print(out);
+    case 5:
+        print(out2);
+}
