@@ -19,7 +19,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 %%
 
-"\n"		{}
+"\n"   { }
 
 {DELIM} 	{}
 
@@ -60,6 +60,10 @@ ID {LETRA}({LETRA}|{NUM})*
 "+="|"-="|"*="|"/=" {yylval.traducao = yytext; return TK_INCREM_ATRIB_ABREV;}
 
 "<"|">"|"<="|">="|"!="|"=="|"||"|"&&" {yylval.traducao = yytext; return TK_LR;}
+
+"/*" {return TK_INIT_COMMENT;}
+
+"*/" {return TK_END_COMMENT;}
 
 [(){}[\];,:]	{ return *yytext; }
 

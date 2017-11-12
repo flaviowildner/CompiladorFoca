@@ -1,15 +1,6 @@
-a = 10;
-out = "AA";
-out2 = "BB";
-
-if(a == 10){
-    print(out);
-}else{
-    print(out2);
-}
-
-if(a == 12){
-    print(out);
-}else{
-    print(out2);
+a = 1.2;
+b = 15;
+while(a < b){
+    print(a);
+    a = a + 0.7;
 }
