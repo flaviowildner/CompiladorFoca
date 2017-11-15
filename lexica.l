@@ -12,7 +12,7 @@ DELIM {ESPACO}+
 NUM {DIGITO}+
 REAL {NUM}+("."{NUM}+)?
 CHAR \'({LETRA}|{NUM})\'
-STRING \"({LETRA}|{NUM})+\"
+STRING \"([^\"\n]|\\\")*\"
 ID {LETRA}({LETRA}|{NUM})*
 
 
@@ -25,9 +25,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "(float)"|"(int)"   {yylval.label = yytext; return TK_CAST;}
 
-"main"		{return TK_MAIN;}
-
-"int"		{return TK_TIPO_INT;}
+"int"|"float"    {yylval.label = yytext; return TK_TIPO;}
 
 "if"    {return TK_IF;}
 
@@ -75,7 +73,7 @@ ID {LETRA}({LETRA}|{NUM})*
 {ID}		{ yylval.label = yytext; yylval.nomeVariavel = yytext; yylval.tipo = "id"; return TK_ID; }
 {REAL}		{ yylval.label = yytext; yylval.tipo = "float"; return TK_NUM; }
 {CHAR}      { yylval.label = yytext; yylval.tipo = "char"; return TK_CHAR; }
-{STRING}	{ yylval.label = yytext; yylval.tipo = "char*"; return TK_STRING; }
+{STRING}	{ yylval.label = yytext; yylval.tipo = "string"; return TK_STRING; }
 .			{ *yytext; }
 
 %%

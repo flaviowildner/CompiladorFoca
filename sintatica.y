@@ -4,6 +4,7 @@
 #include <vector>
 #include <string.h>
 #include <sstream>
+#include <map>
 
 #define YYSTYPE atributos
 
@@ -14,6 +15,12 @@ FILE *out_file;
 string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nusing namespace std;\n\nint main(void)\n{\n";
 string fim_cabecalho = "\treturn 0;\n}";
 
+map<string, string> relacoes_tipos = {{"int", "int"},
+									{"float", "float"},
+									{"char", "char"},
+									{"string", "char*"},
+									{"bool", "int"}};
+
 struct atributos
 {
 	string label;
@@ -22,7 +29,6 @@ struct atributos
 	string tipo;
 	int tamanho;
 };
-
 
 int yylex(void);
 void yyerror(string);
@@ -36,13 +42,17 @@ class mapaDeVariaveis{
 		string rotulo_fim;
 };
 
-vector<mapaDeVariaveis> mapaDeMapas;
+vector<mapaDeVariaveis> pilhaDeMapas;
 vector<atributos> variaveisTemporarias;
+
+string traducao_tipo(string tipo){
+	return relacoes_tipos.find(tipo)->second;
+}
 
 string freeMallocs(){
 	string retorno;
 	for(int i=0;i<variaveisTemporarias.size();i++){
-		if(variaveisTemporarias[i].tipo == "char*"){
+		if(variaveisTemporarias[i].tipo == "string"){
 			retorno += "\tfree(" + variaveisTemporarias[i].label + ");\n";
 		}
 	}
@@ -60,11 +70,10 @@ string gerarNome(){
 string declararTemporarias(){
 	string retorno;
 	for(int i=0;i<variaveisTemporarias.size();i++){
-		retorno += "\t" + variaveisTemporarias[i].tipo + " " + variaveisTemporarias[i].label + ";\n";
+		retorno += "\t" + traducao_tipo(variaveisTemporarias[i].tipo) + " " + variaveisTemporarias[i].label + ";\n";
 	}
 	return retorno;
 }
-
 
 string gerarRotulo(){
 	static int numeroRotulos = 0;
@@ -74,19 +83,17 @@ string gerarRotulo(){
 	return "rotulo_" + stringNumeroVariaveis.str();
 }
 
-
 atributos buscaVariavel(atributos alvo){
 	atributos retorno;
-	for(int i=mapaDeMapas.size() - 1;i>=0;i--){
-		for(int j=0;j<mapaDeMapas[i].mapa.size();j++){
-			if(mapaDeMapas[i].mapa[j].nomeVariavel == alvo.nomeVariavel){
-				retorno = mapaDeMapas[i].mapa[j];
+	for(int i=pilhaDeMapas.size() - 1;i>=0;i--){
+		for(int j=0;j<pilhaDeMapas[i].mapa.size();j++){
+			if(pilhaDeMapas[i].mapa[j].nomeVariavel == alvo.nomeVariavel){
+				retorno = pilhaDeMapas[i].mapa[j];
 				retorno.traducao = "";
 				return retorno;
-			}else if((i == 0) && (j == mapaDeMapas[i].mapa.size() - 1)){
+			}else if((i == 0) && (j == pilhaDeMapas[i].mapa.size() - 1)){
 				retorno.label = "null";
 				return retorno;
-				//yyerror("Error-> Variavel nao declarada");
 			}
 		}
 	}
@@ -95,8 +102,8 @@ atributos buscaVariavel(atributos alvo){
 }
 
 
-%}
 
+%}
 
 
 %token TK_SWITCH 
@@ -105,6 +112,7 @@ atributos buscaVariavel(atributos alvo){
 %token TK_ARITMETICO
 %token TK_LR
 %token TK_CAST
+%token TK_TIPO
 %token TK_ID
 %token TK_BOOL
 %token TK_NUM
@@ -152,13 +160,13 @@ S 			: GLOBAL COMANDOS FIM_GLOBAL
 GLOBAL		:
 			{
 				mapaDeVariaveis mapa;
-				mapaDeMapas.push_back(mapa);
+				pilhaDeMapas.push_back(mapa);
 			}
 			;
 
 FIM_GLOBAL	:
 			{
-				mapaDeMapas.pop_back();
+				pilhaDeMapas.pop_back();
 			}
 			;
 
@@ -170,7 +178,7 @@ EMPILHA		:
 				mapa.rotulo_fim = gerarRotulo();
 				mapa.bloco_quebravel = false;
 
-				mapaDeMapas.push_back(mapa);
+				pilhaDeMapas.push_back(mapa);
 			}
 			;
 
@@ -182,7 +190,7 @@ EMPILHA_QUEBRAVEL :
 				mapa.rotulo_fim = gerarRotulo();
 				mapa.bloco_quebravel = true;
 
-				mapaDeMapas.push_back(mapa);
+				pilhaDeMapas.push_back(mapa);
 			}
 			;
 			
@@ -226,9 +234,9 @@ COMENTARIOS : TK_INIT_COMMENT COMANDOS TK_END_COMMENT
 
 BREAK		: TK_BREAK
 			{
-				for(int i=mapaDeMapas.size() - 1; i >= 0; i--){
-					if(mapaDeMapas[i].bloco_quebravel == true){
-						$$.traducao = "\tgoto " + mapaDeMapas[i].rotulo_fim + ";\n";
+				for(int i=pilhaDeMapas.size() - 1; i >= 0; i--){
+					if(pilhaDeMapas[i].bloco_quebravel == true){
+						$$.traducao = "\tgoto " + pilhaDeMapas[i].rotulo_fim + ";\n";
 						break;
 					}
 				}
@@ -237,9 +245,9 @@ BREAK		: TK_BREAK
 
 CONTINUE	: TK_CONTINUE
 			{
-				for(int i=mapaDeMapas.size() - 1; i >= 0; i--){
-					if(mapaDeMapas[i].bloco_quebravel == true){
-						$$.traducao = "\tgoto " + mapaDeMapas[i].rotulo_condicao + ";\n";
+				for(int i=pilhaDeMapas.size() - 1; i >= 0; i--){
+					if(pilhaDeMapas[i].bloco_quebravel == true){
+						$$.traducao = "\tgoto " + pilhaDeMapas[i].rotulo_condicao + ";\n";
 						break;
 					}
 				}
@@ -249,8 +257,8 @@ CONTINUE	: TK_CONTINUE
 
 SWITCH		: TK_SWITCH EMPILHA_QUEBRAVEL '(' SWITCH_COND ')' '{' SWITCH_CASES '}'
 			{
-				$$.traducao = $4.traducao + $7.traducao + "\t" + mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim + ":\n";
-				mapaDeMapas.pop_back();
+				$$.traducao = $4.traducao + $7.traducao + "\t" + pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
 			}
 			;
 
@@ -261,7 +269,7 @@ SWITCH_COND : TK_ID
 				if($1.label == "null"){
 					yyerror("Error-> Variavel nao declarada");
 				}
-				mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back($1);
+				pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back($1);
 			}
 			;
 
@@ -279,13 +287,12 @@ SWITCH_CASES : CASE SWITCH_CASES
 
 CASE		: TK_CASE CASE_VALOR ':' EMPILHA COMANDOS
 			{
-				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim;
-				$$.traducao = $2.traducao + "\tif(" + mapaDeMapas[mapaDeMapas.size() - 2].mapa[0].label + " == " + $2.label + ")\n\t\tgoto " + rotulo_bloco + ";\ntgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $5.traducao + "\t" + rotulo_fim + ":\n";
-				mapaDeMapas.pop_back();
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
+				$$.traducao = $2.traducao + "\tif(" + pilhaDeMapas[pilhaDeMapas.size() - 2].mapa[0].label + " == " + $2.label + ")\n\t\tgoto " + rotulo_bloco + ";\ntgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $5.traducao + "\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
 			}
 			;
-
 
 CASE_VALOR	: TK_NUM
 			{
@@ -310,55 +317,98 @@ CASE_VALOR	: TK_NUM
 			}
 			;
 
-IF			:  TK_IF '(' LR ')' EMPILHA BLOCO
+IF			: TK_IF '(' LR ')' EMPILHA BLOCO ELSE
 			{
-				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim;
-				$$.traducao = $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\t" + rotulo_fim + ":\n";
-				mapaDeMapas.pop_back();
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
+				string rotulo_else = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
+				$$.traducao = $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_else + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_fim + ";\n\t" + rotulo_else + ":\n" + $7.traducao + "\t" + rotulo_fim + ":\n";
+				
+				pilhaDeMapas.pop_back();
 			}
-			| TK_IF '(' LR ')' EMPILHA BLOCO TK_ELSE EMPILHA BLOCO
+			| TK_IF '(' LR ')' EMPILHA COMANDO ELSE
 			{
-				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_else = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim;
-				$$.traducao = $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_else + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_fim + ";\n\t" + rotulo_else + ":\n" + $9.traducao + "\t" + rotulo_fim + ":\n";
-				mapaDeMapas.pop_back();
-				mapaDeMapas.pop_back();
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
+				string rotulo_else = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
+				$$.traducao = $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_else + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_fim + ";\n\t" + rotulo_else + ":\n" + $7.traducao + "\t" + rotulo_fim + ":\n";
+				
+				pilhaDeMapas.pop_back();
 			}
+			;
+
+ELSE		: TK_ELSE EMPILHA BLOCO
+			{
+				$$ = $3;
+				pilhaDeMapas.pop_back();
+			}
+			| TK_ELSE EMPILHA COMANDO
+			{
+				$$ = $3;
+				pilhaDeMapas.pop_back();
+			}
+			|
 			;
 
 WHILE		: TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL BLOCO
 			{
-				string rotulo_condicao = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim;
+				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
 
 				$$.traducao = "\t" + rotulo_condicao + ":\n" + $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
-				mapaDeMapas.pop_back();
+				pilhaDeMapas.pop_back();
+			}
+			| TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL COMANDO
+			{
+				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
+
+				$$.traducao = "\t" + rotulo_condicao + ":\n" + $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
 			}
 			;
 
 DO			: TK_DO EMPILHA_QUEBRAVEL BLOCO TK_WHILE '(' LR ')' ';'
 			{
-				string rotulo_condicao = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim;
+				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
 
 				$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
-				mapaDeMapas.pop_back();
+				pilhaDeMapas.pop_back();
+			}
+			| TK_DO EMPILHA_QUEBRAVEL COMANDO TK_WHILE '(' LR ')' ';'
+			{
+				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
+
+				$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
 			}
 			;
 
 FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
 			{
-				string rotulo_condicao = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = mapaDeMapas[mapaDeMapas.size() - 1].rotulo_fim;
+				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
 
 				
 				$$.traducao = $4.traducao + "\t" + rotulo_condicao + ":\n" + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $10.traducao + $8.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
-				mapaDeMapas.pop_back();
+				pilhaDeMapas.pop_back();
+			}
+			| TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' COMANDO
+			{
+				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
+
+				
+				$$.traducao = $4.traducao + "\t" + rotulo_condicao + ":\n" + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $10.traducao + $8.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
 			}
 			;
 
@@ -395,7 +445,7 @@ LR			: E TK_LR E
 
 ATRIBUICAO	: TK_ID '=' E
 			{
-				$$ = buscaVariavel($1);				
+				$$ = buscaVariavel($1);
 				if($$.label == "null"){
 					$$.label = gerarNome();
 					$$.nomeVariavel = $1.nomeVariavel;
@@ -403,13 +453,28 @@ ATRIBUICAO	: TK_ID '=' E
 					$$.tamanho = $3.tamanho;
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 					atributos temp = $$;
-					mapaDeMapas[mapaDeMapas.size() - 1].mapa.push_back(temp);
+					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
 					variaveisTemporarias.push_back($$);
 				}else{
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 				}
 			}
-			| 
+			| TK_TIPO TK_ID '=' E
+			{
+				$$ = buscaVariavel($2);
+				if($$.label == "null"){
+					$$.label = gerarNome();
+					$$.nomeVariavel = $2.nomeVariavel;
+					$$.tipo = $1.label;
+					$$.tamanho = $4.tamanho;
+					$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
+					atributos temp = $$;
+					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
+					variaveisTemporarias.push_back($$);
+				}else{
+					$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
+				}
+			}
 			| TK_ID TK_INCREMENTO
 			{
 				$$ = buscaVariavel($1);				
@@ -436,9 +501,9 @@ E 			: '(' E ')'
 			}
 			| E TK_ARITMETICO E
 			{
-				if($1.tipo == "char*" || $3.tipo == "char*"){
+				if($1.tipo == "string" || $3.tipo == "string"){
 					$$.tamanho = $1.tamanho + $3.tamanho - 1;
-					$$.tipo = "char*";
+					$$.tipo = "string";
 					$$.label = gerarNome();
 					ostringstream convert;
 					convert << $$.tamanho;
