@@ -47,7 +47,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "continue"  {return TK_CONTINUE;}
 
-"true"|"false"		{yylval.label = yytext; yylval.tipo = "bool"; return TK_BOOL;}
+"true"|"false"		{ if(strcmp(yytext, "false")) yylval.label = "1"; else yylval.label = "0"; yylval.tipo = "bool"; return TK_BOOL;}
 
 "print" {yylval.label = yytext; return TK_PRINT; }
 
