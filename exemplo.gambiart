@@ -1,2 +1,8 @@
-a = true;
-b = false;
+a = 10;
+b = 2;
+
+if(a < 15)
+    print(a);
+else{
+    
+}

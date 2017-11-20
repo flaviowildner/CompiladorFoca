@@ -262,7 +262,6 @@ SWITCH		: TK_SWITCH EMPILHA_QUEBRAVEL '(' SWITCH_COND ')' '{' SWITCH_CASES '}'
 			}
 			;
 
-
 SWITCH_COND : TK_ID
 			{
 				$1 = buscaVariavel($1);
@@ -272,7 +271,6 @@ SWITCH_COND : TK_ID
 				pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back($1);
 			}
 			;
-
 
 SWITCH_CASES : CASE SWITCH_CASES
 			{
@@ -336,7 +334,6 @@ IF			: TK_IF '(' LR ')' EMPILHA BLOCO ELSE
 				pilhaDeMapas.pop_back();
 			}
 			;
-
 ELSE		: TK_ELSE EMPILHA BLOCO
 			{
 				$$ = $3;
@@ -348,6 +345,9 @@ ELSE		: TK_ELSE EMPILHA BLOCO
 				pilhaDeMapas.pop_back();
 			}
 			|
+			{
+				$$.traducao = "";
+			}
 			;
 
 WHILE		: TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL BLOCO
@@ -411,7 +411,6 @@ FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
 				pilhaDeMapas.pop_back();
 			}
 			;
-
 
 LR			: E TK_LR E
 			{
@@ -601,7 +600,6 @@ E 			: '(' E ')'
 				$$.traducao = "\t" + $$.label + " = (char*)malloc(" + convert.str() + " * sizeof(char));\n\tstrcpy(" + $$.label + ", " + $1.label + ");\n";
 			}
 			;
-
 
 PRINT		: TK_PRINT '(' TK_ID ')'
 			{
