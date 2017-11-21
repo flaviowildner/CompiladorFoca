@@ -37,8 +37,7 @@ void yyerror(string);
 struct mapaDeVariaveis{
 	vector<atributos> mapa;
 	bool bloco_quebravel;
-	string rotulo_condicao;
-	string rotulo_bloco;
+	string rotulo_inicio;
 	string rotulo_fim;
 };
 
@@ -168,8 +167,7 @@ FIM_GLOBAL	:
 EMPILHA		: 
 			{
 				mapaDeVariaveis mapa;
-				mapa.rotulo_condicao = gerarRotulo();
-				mapa.rotulo_bloco = gerarRotulo();
+				mapa.rotulo_inicio = gerarRotulo();
 				mapa.rotulo_fim = gerarRotulo();
 				mapa.bloco_quebravel = false;
 
@@ -180,8 +178,7 @@ EMPILHA		:
 EMPILHA_QUEBRAVEL :
 			{
 				mapaDeVariaveis mapa;
-				mapa.rotulo_condicao = gerarRotulo();
-				mapa.rotulo_bloco = gerarRotulo();
+				mapa.rotulo_inicio = gerarRotulo();
 				mapa.rotulo_fim = gerarRotulo();
 				mapa.bloco_quebravel = true;
 
@@ -242,11 +239,102 @@ BREAK		: TK_BREAK
 CONTINUE	: TK_CONTINUE
 			{
 				for(int i=pilhaDeMapas.size() - 1; i >= 0; i--){
-					if(pilhaDeMapas[i].bloco_quebravel == true){
-						$$.traducao = "\tgoto " + pilhaDeMapas[i].rotulo_condicao + ";\n";
+					if(pilhaDeMapas[i].bloco_quebravel){
+						$$.traducao = "\tgoto " + pilhaDeMapas[i].rotulo_inicio + ";\n";
 						break;
 					}
 				}
+			}
+			;
+
+
+IF			: TK_IF '(' LR ')' EMPILHA BLOCO ELSE
+			{
+				string rotulo_else = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+				$$.traducao = $3.traducao + "\tif(!" + $3.label + ")\n\t\tgoto " + rotulo_else + ";\n" + $6.traducao + "\tgoto " + rotulo_fim + ";\n\t"  + rotulo_else + ":\n" + $7.traducao + "\t" + rotulo_fim + ":\n";
+				
+				pilhaDeMapas.pop_back();
+			}
+			| TK_IF '(' LR ')' EMPILHA COMANDO ELSE
+			{
+				string rotulo_else = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+				$$.traducao = $3.traducao + "\tif(!" + $3.label + ")\n\t\tgoto " + rotulo_else + ";\n" + $6.traducao + "\tgoto " + rotulo_fim + ";\n\t" + rotulo_else + ":\n" + $7.traducao + "\t" + rotulo_fim + ":\n";
+				
+				pilhaDeMapas.pop_back();
+			}
+			;
+ELSE		: TK_ELSE EMPILHA BLOCO
+			{
+				$$ = $3;
+				pilhaDeMapas.pop_back();
+			}
+			| TK_ELSE EMPILHA COMANDO
+			{
+				$$ = $3;
+				pilhaDeMapas.pop_back();
+			}
+			|
+			{
+				$$.traducao = "";
+			}
+			;
+
+WHILE		: TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL BLOCO
+			{
+				string rotulo_condicao = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+
+				$$.traducao = "\t" + rotulo_condicao + ":\n" + $3.traducao + "\tif(!" + $3.label + ")\n\t\tgoto " + rotulo_fim + ";\n" + $6.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
+			}
+			| TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL COMANDO
+			{
+				string rotulo_condicao = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+
+				$$.traducao = "\t" + rotulo_condicao + ":\n" + $3.traducao + "\tif(!" + $3.label + ")\n\t\tgoto " + rotulo_fim + ";\n" + $6.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
+			}
+			;
+
+DO			: TK_DO EMPILHA_QUEBRAVEL BLOCO TK_WHILE '(' LR ')' ';'
+			{
+				string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+
+				$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
+			}
+			| TK_DO EMPILHA_QUEBRAVEL COMANDO TK_WHILE '(' LR ')' ';'
+			{
+				string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+
+				$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
+			}
+			;
+
+FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
+			{
+				string rotulo_incremento = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+				string rotulo_condicao = gerarRotulo();
+
+				
+				$$.traducao = $4.traducao + "\t" + rotulo_condicao + ":\n" + $6.traducao + "\tif(!" + $6.label + ")\n\t\tgoto " + rotulo_fim + ";\n" + $10.traducao + "\t" + rotulo_incremento + ":\n" + $8.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
+			}
+			| TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' COMANDO
+			{
+				string rotulo_condicao = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+				string rotulo_incremento = gerarRotulo();
+				
+				$$.traducao = $4.traducao + "\t" + rotulo_condicao + ":\n" + $6.traducao + "\tif(!" + $6.label + ")\n\t\tgoto " + rotulo_fim + ";\n" + $10.traducao + "\n\tgoto " + rotulo_incremento + "\n\t" + $8.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
+				pilhaDeMapas.pop_back();
 			}
 			;
 
@@ -281,9 +369,10 @@ SWITCH_CASES : CASE SWITCH_CASES
 
 CASE		: TK_CASE CASE_VALOR ':' EMPILHA COMANDOS
 			{
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-				$$.traducao = $2.traducao + "\tif(" + pilhaDeMapas[pilhaDeMapas.size() - 2].mapa[0].label + " == " + $2.label + ")\n\t\tgoto " + rotulo_bloco + ";\ntgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $5.traducao + "\t" + rotulo_fim + ":\n";
+				string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
+				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
+
+				$$.traducao = $2.traducao + "\tif(" + pilhaDeMapas[pilhaDeMapas.size() - 2].mapa[0].label + " == " + $2.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $5.traducao + "\t" + rotulo_fim + ":\n";
 				pilhaDeMapas.pop_back();
 			}
 			;
@@ -308,103 +397,6 @@ CASE_VALOR	: TK_NUM
 				$$.label = gerarNome();
 				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
 				variaveisTemporarias.push_back($$);
-			}
-			;
-
-IF			: TK_IF '(' LR ')' EMPILHA BLOCO ELSE
-			{
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_else = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-				$$.traducao = $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_else + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_fim + ";\n\t" + rotulo_else + ":\n" + $7.traducao + "\t" + rotulo_fim + ":\n";
-				
-				pilhaDeMapas.pop_back();
-			}
-			| TK_IF '(' LR ')' EMPILHA COMANDO ELSE
-			{
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_else = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-				$$.traducao = $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_else + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_fim + ";\n\t" + rotulo_else + ":\n" + $7.traducao + "\t" + rotulo_fim + ":\n";
-				
-				pilhaDeMapas.pop_back();
-			}
-			;
-ELSE		: TK_ELSE EMPILHA BLOCO
-			{
-				$$ = $3;
-				pilhaDeMapas.pop_back();
-			}
-			| TK_ELSE EMPILHA COMANDO
-			{
-				$$ = $3;
-				pilhaDeMapas.pop_back();
-			}
-			|
-			{
-				$$.traducao = "";
-			}
-			;
-
-WHILE		: TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL BLOCO
-			{
-				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-
-				$$.traducao = "\t" + rotulo_condicao + ":\n" + $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
-				pilhaDeMapas.pop_back();
-			}
-			| TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL COMANDO
-			{
-				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-
-				$$.traducao = "\t" + rotulo_condicao + ":\n" + $3.traducao + "\tif(" + $3.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $6.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
-				pilhaDeMapas.pop_back();
-			}
-			;
-
-DO			: TK_DO EMPILHA_QUEBRAVEL BLOCO TK_WHILE '(' LR ')' ';'
-			{
-				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-
-				$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
-				pilhaDeMapas.pop_back();
-			}
-			| TK_DO EMPILHA_QUEBRAVEL COMANDO TK_WHILE '(' LR ')' ';'
-			{
-				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-
-				$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
-				pilhaDeMapas.pop_back();
-			}
-			;
-
-FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
-			{
-				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-
-				
-				$$.traducao = $4.traducao + "\t" + rotulo_condicao + ":\n" + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $10.traducao + $8.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
-				pilhaDeMapas.pop_back();
-			}
-			| TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' COMANDO
-			{
-				string rotulo_condicao = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_condicao;
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
-				string rotulo_fim = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim;
-
-				
-				$$.traducao = $4.traducao + "\t" + rotulo_condicao + ":\n" + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\tgoto " + rotulo_fim + ";\n\t" + rotulo_bloco + ":\n" + $10.traducao + $8.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
-				pilhaDeMapas.pop_back();
 			}
 			;
 
@@ -446,6 +438,8 @@ LR			: E TK_LR E
 				}
 			}
 			;
+
+
 
 ATRIBUICAO	: TK_ID '=' E
 			{
@@ -643,7 +637,7 @@ PRINT		: TK_PRINT '(' TK_ID ')'
 
 SCAN		: EMPILHA TK_SCAN '(' TK_ID ')'
 			{
-				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+				string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
 
 				atributos stringRead;
 				stringRead.label = gerarNome();
