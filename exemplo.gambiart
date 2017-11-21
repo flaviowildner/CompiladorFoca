@@ -1,8 +1,4 @@
-a = 10;
-b = 2;
-
-if(a < 15)
-    print(a);
-else{
-    
-}
+string a = "testetestetesteteste";
+b = "123123123123123";
+c = a + b;
+print(c);

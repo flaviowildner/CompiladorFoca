@@ -15,14 +15,15 @@ FILE *out_file;
 string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nusing namespace std;\n\nint main(void)\n{\n";
 string fim_cabecalho = "\treturn 0;\n}";
 
-map<string, string> relacoes_tipos = {{"int", "int"},
+map<string, string> traducao_tipos = {{"int", "int"},
 									{"float", "float"},
 									{"char", "char"},
 									{"string", "char*"},
 									{"bool", "int"}};
 
-struct atributos
-{
+
+
+struct atributos{
 	string label;
 	string nomeVariavel;
 	string traducao;
@@ -33,20 +34,19 @@ struct atributos
 int yylex(void);
 void yyerror(string);
 
-class mapaDeVariaveis{
-	public:
-		vector<atributos> mapa;
-		bool bloco_quebravel;
-		string rotulo_condicao;
-		string rotulo_bloco;
-		string rotulo_fim;
+struct mapaDeVariaveis{
+	vector<atributos> mapa;
+	bool bloco_quebravel;
+	string rotulo_condicao;
+	string rotulo_bloco;
+	string rotulo_fim;
 };
 
 vector<mapaDeVariaveis> pilhaDeMapas;
 vector<atributos> variaveisTemporarias;
 
 string traducao_tipo(string tipo){
-	return relacoes_tipos.find(tipo)->second;
+	return traducao_tipos.find(tipo)->second;
 }
 
 string freeMallocs(){
@@ -101,10 +101,7 @@ atributos buscaVariavel(atributos alvo){
 	return retorno;
 }
 
-
-
 %}
-
 
 %token TK_SWITCH 
 %token TK_CASE 
@@ -121,6 +118,7 @@ atributos buscaVariavel(atributos alvo){
 %token TK_MAIN TK_TIPO_INT
 %token TK_FIM TK_ERROR
 %token TK_PRINT
+%token TK_SCAN
 %token TK_IF
 %token TK_ELSE
 %token TK_WHILE
@@ -136,15 +134,12 @@ atributos buscaVariavel(atributos alvo){
 
 %start S
 
-
 %left '='
 %left "||" "&&"
 %left "==" "!="
 %left '<' '>' ">=" "<="
 %left '+' '-'
 %left '*' '/' "%%"
-
-
 
 %%
 S 			: GLOBAL COMANDOS FIM_GLOBAL
@@ -215,6 +210,7 @@ COMANDOS	: COMANDOS COMANDO
 COMANDO 	: E ';'
 			| ATRIBUICAO ';'
 			| PRINT ';'
+			| SCAN ';'
 			| IF
 			| LR ';'
 			| WHILE
@@ -440,6 +436,15 @@ LR			: E TK_LR E
 				}
 				variaveisTemporarias.push_back($$);
 			}
+			| TK_ID
+			{
+				$$ = buscaVariavel($1);
+				if($$.tipo == "bool"){
+					//$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";		
+				}else{
+					yyerror("Condição ser do tipo bool.");
+				}
+			}
 			;
 
 ATRIBUICAO	: TK_ID '=' E
@@ -471,7 +476,36 @@ ATRIBUICAO	: TK_ID '=' E
 					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
 					variaveisTemporarias.push_back($$);
 				}else{
+					$$.label = 
 					$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
+				}
+			}
+			| TK_TIPO TK_ID
+			{
+				$$ = buscaVariavel($2);
+				if($$.label == "null"){
+					$$.label = gerarNome();
+					$$.nomeVariavel = $2.nomeVariavel;
+					$$.tipo = $1.label;					
+					atributos temp = $$;
+					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
+					variaveisTemporarias.push_back($$);
+				}
+			}
+			| TK_ID '=' LR
+			{
+				$$ = buscaVariavel($1);
+				if($$.label == "null"){
+					$$.label = gerarNome();
+					$$.nomeVariavel = $1.nomeVariavel;
+					$$.tipo = $3.tipo;
+					$$.tamanho = $3.tamanho;
+					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
+					atributos temp = $$;
+					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
+					variaveisTemporarias.push_back($$);
+				}else{
+					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 				}
 			}
 			| TK_ID TK_INCREMENTO
@@ -510,26 +544,21 @@ E 			: '(' E ')'
 					$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = (char*)malloc(" + convert.str() + " * sizeof(char)" + ");\n\t" + $$.label + "[0] = \'\\0\';\n" + "\tstrcat(" + $$.label + "," + $1.label + ");\n\tstrcat(" + $$.label + "," + $3.label + ");\n";
 				}
 				else{
+					$$.label = gerarNome();
 					if($1.tipo == $3.tipo){
-						$$.label = gerarNome();
 						$$.tipo = $1.tipo;
 						$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
 					}else{
+						$$.tipo = "float";
+						atributos tempCastVar;
+						tempCastVar.label = gerarNome();
+						tempCastVar.tipo = "float";
 						if($1.tipo == "int"){
-							string tempCastVarLabel = gerarNome();
-							string builder = "\t" + $3.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
-							$1.label = tempCastVarLabel;
-							$$.label = gerarNome();
-							$$.tipo = $3.tipo;
-							$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+							$$.traducao = $1.traducao + $3.traducao + "\t" + tempCastVar.label + " = (float)" + $1.label + ";\n\t" + $$.label + " = " + tempCastVar.label + " " + $2.traducao + " " + $3.label + ";\n";
 						}else{
-							string tempCastVarLabel = gerarNome();
-							string builder = "\t" + $1.tipo + " " + tempCastVarLabel + ";\n\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
-							$3.label = tempCastVarLabel;
-							$$.label = gerarNome();
-							$$.tipo = $1.tipo;
-							$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
+							$$.traducao = $1.traducao + $3.traducao + "\t" + tempCastVar.label + " = (float)" + $3.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + tempCastVar.label + ";\n";
 						}
+						variaveisTemporarias.push_back(tempCastVar);
 					}
 				}
 				variaveisTemporarias.push_back($$);
@@ -612,7 +641,45 @@ PRINT		: TK_PRINT '(' TK_ID ')'
 			;
 
 
-%%
+SCAN		: EMPILHA TK_SCAN '(' TK_ID ')'
+			{
+				string rotulo_bloco = pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_bloco;
+
+				atributos stringRead;
+				stringRead.label = gerarNome();
+				stringRead.tipo = "string";
+
+				atributos tempChar;
+				tempChar.label = gerarNome();
+				tempChar.tipo = "char";
+
+				atributos contador;
+				contador.label = gerarNome();
+				contador.tipo = "int";
+				
+				atributos temp = buscaVariavel($4);
+
+				$$.traducao = "\t" + contador.label + " = 0;\n" +
+				"\t" + stringRead.label + " = (char*)malloc(sizeof(char));\n" +
+				"\t" + rotulo_bloco + ":\n" +
+				"\t" + tempChar.label + " = getchar();\n" +
+				"\t" + stringRead.label + " = (char*)realloc(" + stringRead.label + ", " + contador.label + " + 1);\n" +
+				"\t" + stringRead.label + "[" + contador.label + "]" + " = " + tempChar.label + ";\n" +
+				"\t" + contador.label + "++;\n" +
+				"\tif(" + tempChar.label + " != \'\\n\')\n\t\tgoto " + rotulo_bloco + ";\n" +
+				"\t" + stringRead.label + "[" + contador.label + "] = \'\\0\';\n" +
+				"\t" + temp.label + " = " + stringRead.label + ";\n";
+				//$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
+				
+
+				variaveisTemporarias.push_back(stringRead);
+				variaveisTemporarias.push_back(tempChar);
+				variaveisTemporarias.push_back(contador);
+			}
+			;
+
+
+%%			
 #include "lex.yy.c"
 int yyparse();
 int main( int argc, char* argv[] )

@@ -25,7 +25,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "(float)"|"(int)"   {yylval.label = yytext; return TK_CAST;}
 
-"int"|"float"    {yylval.label = yytext; return TK_TIPO;}
+"int"|"float"|"char"|"string"    {yylval.label = yytext; return TK_TIPO;}
 
 "if"    {return TK_IF;}
 
@@ -49,7 +49,9 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "true"|"false"		{ if(strcmp(yytext, "false")) yylval.label = "1"; else yylval.label = "0"; yylval.tipo = "bool"; return TK_BOOL;}
 
-"print" {yylval.label = yytext; return TK_PRINT; }
+"print" {yylval.label = yytext; return TK_PRINT;}
+
+"scan"  {yylval.label = yytext; return TK_SCAN;}
 
 "+"|"-"|"*"|"/"  {yylval.traducao = yytext; return TK_ARITMETICO;}
 
