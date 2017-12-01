@@ -1,4 +1,6 @@
 %{
+#define __USE_MINGW_ANSI_STDIO 0
+
 #include <stdio.h>
 #include <iostream>
 #include <vector>
@@ -10,6 +12,7 @@
 
 using namespace std;
 
+
 FILE *out_file;
 
 string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nusing namespace std;\n\nint main(void)\n{\n";
@@ -19,20 +22,27 @@ map<string, string> traducao_tipos = {{"int", "int"},
 									{"float", "float"},
 									{"char", "char"},
 									{"string", "char*"},
-									{"bool", "int"}};
+									{"bool", "int"},
+									{"int*", "int*"},
+									{"float*", "float*"},
+									{"char*", "char*"}};
 
 
-
+/////////////////////////
 struct atributos{
 	string label;
 	string nomeVariavel;
 	string traducao;
 	string tipo;
-	int tamanho;
+	string tamanho;
+	vector<string> tamanho_indice;
 };
 
-int yylex(void);
-void yyerror(string);
+struct temporaria{
+	string label;
+	string tipo;
+};
+
 
 struct mapaDeVariaveis{
 	vector<atributos> mapa;
@@ -41,8 +51,17 @@ struct mapaDeVariaveis{
 	string rotulo_fim;
 };
 
+////////////////////////////////
+
+
+int yylex(void);
+void yyerror(string);
+
+
 vector<mapaDeVariaveis> pilhaDeMapas;
-vector<atributos> variaveisTemporarias;
+vector<temporaria> variaveisTemporarias;
+vector<string> pilha_indice;
+string tipo_declaracao;
 
 string traducao_tipo(string tipo){
 	return traducao_tipos.find(tipo)->second;
@@ -106,7 +125,7 @@ atributos buscaVariavel(atributos alvo){
 %token TK_CASE 
 %token TK_DEFAULT
 %token TK_ARITMETICO
-%token TK_LR
+%token TK_OPR TK_OPL
 %token TK_CAST
 %token TK_TIPO
 %token TK_ID
@@ -127,6 +146,7 @@ atributos buscaVariavel(atributos alvo){
 %token TK_INCREM_ATRIB_ABREV
 %token TK_BREAK TK_CONTINUE
 %token TK_INIT_COMMENT TK_END_COMMENT
+%token TK_EXP TK_PORCENTAGEM
 
 %nonassoc TK_IF
 %nonassoc TK_ELSE
@@ -134,11 +154,11 @@ atributos buscaVariavel(atributos alvo){
 %start S
 
 %left '='
-%left "||" "&&"
-%left "==" "!="
-%left '<' '>' ">=" "<="
+%left TK_OPR
+%left TK_OPL
+%left TK_EXP TK_PORCENTAGEM
 %left '+' '-'
-%left '*' '/' "%%"
+%left '*' '/'
 
 %%
 S 			: GLOBAL COMANDOS FIM_GLOBAL
@@ -205,11 +225,12 @@ COMANDOS	: COMANDOS COMANDO
 			;
 
 COMANDO 	: E ';'
+			| DECLARACAO ';'
 			| ATRIBUICAO ';'
 			| PRINT ';'
 			| SCAN ';'
 			| IF
-			| LR ';'
+			| L ';'
 			| WHILE
 			| DO
 			| FOR
@@ -224,6 +245,7 @@ COMENTARIOS : TK_INIT_COMMENT COMANDOS TK_END_COMMENT
 				$$.traducao = "";
 			}
 			;
+
 
 BREAK		: TK_BREAK
 			{
@@ -248,7 +270,7 @@ CONTINUE	: TK_CONTINUE
 			;
 
 
-IF			: TK_IF '(' LR ')' EMPILHA BLOCO ELSE
+IF			: TK_IF '(' L ')' EMPILHA BLOCO ELSE
 			{
 				string rotulo_else = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
@@ -256,7 +278,7 @@ IF			: TK_IF '(' LR ')' EMPILHA BLOCO ELSE
 				
 				pilhaDeMapas.pop_back();
 			}
-			| TK_IF '(' LR ')' EMPILHA COMANDO ELSE
+			| TK_IF '(' L ')' EMPILHA COMANDO ELSE
 			{
 				string rotulo_else = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
@@ -281,7 +303,7 @@ ELSE		: TK_ELSE EMPILHA BLOCO
 			}
 			;
 
-WHILE		: TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL BLOCO
+WHILE		: TK_WHILE '(' L ')' EMPILHA_QUEBRAVEL BLOCO
 			{
 				string rotulo_condicao = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
@@ -289,7 +311,7 @@ WHILE		: TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL BLOCO
 				$$.traducao = "\t" + rotulo_condicao + ":\n" + $3.traducao + "\tif(!" + $3.label + ")\n\t\tgoto " + rotulo_fim + ";\n" + $6.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
 				pilhaDeMapas.pop_back();
 			}
-			| TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL COMANDO
+			| TK_WHILE '(' L ')' EMPILHA_QUEBRAVEL COMANDO
 			{
 				string rotulo_condicao = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
@@ -299,7 +321,7 @@ WHILE		: TK_WHILE '(' LR ')' EMPILHA_QUEBRAVEL BLOCO
 			}
 			;
 
-DO			: TK_DO EMPILHA_QUEBRAVEL BLOCO TK_WHILE '(' LR ')' ';'
+DO			: TK_DO EMPILHA_QUEBRAVEL BLOCO TK_WHILE '(' L ')' ';'
 			{
 				string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
@@ -307,7 +329,7 @@ DO			: TK_DO EMPILHA_QUEBRAVEL BLOCO TK_WHILE '(' LR ')' ';'
 				$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
 				pilhaDeMapas.pop_back();
 			}
-			| TK_DO EMPILHA_QUEBRAVEL COMANDO TK_WHILE '(' LR ')' ';'
+			| TK_DO EMPILHA_QUEBRAVEL COMANDO TK_WHILE '(' L ')' ';'
 			{
 				string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
@@ -317,7 +339,7 @@ DO			: TK_DO EMPILHA_QUEBRAVEL BLOCO TK_WHILE '(' LR ')' ';'
 			}
 			;
 
-FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
+FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' L ';' ATRIBUICAO ')' BLOCO
 			{
 				string rotulo_incremento = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
@@ -327,7 +349,7 @@ FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
 				$$.traducao = $4.traducao + "\t" + rotulo_condicao + ":\n" + $6.traducao + "\tif(!" + $6.label + ")\n\t\tgoto " + rotulo_fim + ";\n" + $10.traducao + "\t" + rotulo_incremento + ":\n" + $8.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
 				pilhaDeMapas.pop_back();
 			}
-			| TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' COMANDO
+			| TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' L ';' ATRIBUICAO ')' COMANDO
 			{
 				string rotulo_condicao = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
@@ -341,7 +363,7 @@ FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' LR ';' ATRIBUICAO ')' BLOCO
 
 SWITCH		: TK_SWITCH EMPILHA_QUEBRAVEL '(' SWITCH_COND ')' '{' SWITCH_CASES '}'
 			{
-				$$.traducao = $4.traducao + $7.traducao + "\t" + pilhaDeMapas[pilhaDeMapas.size() - 1].rotulo_fim + ":\n";
+				$$.traducao = $4.traducao + $7.traducao + "\t" + pilhaDeMapas.back().rotulo_fim + ":\n";
 				pilhaDeMapas.pop_back();
 			}
 			;
@@ -352,7 +374,7 @@ SWITCH_COND : TK_ID
 				if($1.label == "null"){
 					yyerror("Error-> Variavel nao declarada");
 				}
-				pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back($1);
+				pilhaDeMapas.back().mapa.push_back($1);
 			}
 			;
 
@@ -382,7 +404,7 @@ CASE_VALOR	: TK_NUM
 				$$ = $1;
 				$$.label = gerarNome();
 				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-				variaveisTemporarias.push_back($$);
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| TK_ID
 			{
@@ -396,63 +418,294 @@ CASE_VALOR	: TK_NUM
 				$$ = $1;
 				$$.label = gerarNome();
 				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-				variaveisTemporarias.push_back($$);
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			;
 
-LR			: E TK_LR E
+L 			: L TK_OPL L
+			{
+				$$.label = gerarNome();
+				$$.tipo = "bool";
+				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";	
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+			}
+			| '(' L ')'
+			{
+				$$.label = gerarNome();
+				$$.tipo = "bool";
+				$$.traducao = $2.traducao + "\t" + $$.label + " = " + $2.label + ";\n";
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+			}
+			|
+			R
+			;
+
+R			: E TK_OPR E
 			{
 				if($1.tipo == $3.tipo){
 					$$.label = gerarNome();
 					$$.tipo = "bool";
 					$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
 				}else{
-					if($1.tipo == "int"){
-						string tempCastVarLabel = gerarNome();
-						string builder = "\t" + tempCastVarLabel + " = " + "(" + $3.tipo + ")" + $1.label + ";\n";
-						$1.label = tempCastVarLabel;
-						$$.label = gerarNome();
-						$$.tipo = "bool";
-						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-						variaveisTemporarias.push_back($1);
+					$$.label = gerarNome();
+					if($1.tipo == $3.tipo){
+						$$.tipo = $1.tipo;
+						$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
 					}else{
-						string tempCastVarLabel = gerarNome();
-						string builder = "\t" + tempCastVarLabel + " = " + "(" + $1.tipo + ")" + $3.label + ";\n";
-						$3.label = tempCastVarLabel;
-						$$.label = gerarNome();
 						$$.tipo = "bool";
-						$$.traducao = $1.traducao + $3.traducao + builder + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-						variaveisTemporarias.push_back($3);
+						atributos tempCastVar;
+						tempCastVar.label = gerarNome();
+						tempCastVar.tipo = "float";
+						if($1.tipo == "int"){
+							$$.traducao = $1.traducao + $3.traducao + "\t" + tempCastVar.label + " = (float)" + $1.label + ";\n\t" + $$.label + " = " + tempCastVar.label + " " + $2.traducao + " " + $3.label + ";\n";
+						}else{
+							$$.traducao = $1.traducao + $3.traducao + "\t" + tempCastVar.label + " = (float)" + $3.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + tempCastVar.label + ";\n";
+						}
+						variaveisTemporarias.push_back({.label = tempCastVar.label, .tipo = tempCastVar.tipo});
 					}
-					
 				}
-				variaveisTemporarias.push_back($$);
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
-			| TK_ID
+			;
+
+INDICE 		: '[' E ']'
 			{
-				$$ = buscaVariavel($1);
-				if($$.tipo == "bool"){
-					//$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";		
-				}else{
-					yyerror("Condição ser do tipo bool.");
-				}
+				$$.label = gerarNome();
+				$$.tipo = $2.tipo;
+				$$.traducao = $2.traducao + "\t" + $$.label + " = " + $2.label + ";\n";
+				pilha_indice.push_back($$.label);
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			;
 
 
+INDICES		: INDICE INDICES
+			{
+				$$.label = gerarNome();
+				$$.tipo = "int";
+				if($2.label != ""){
+					$$.traducao = $1.traducao + $2.traducao + "\t" + $$.label + " = " + $1.label + " * " + $2.label + ";\n";
+				}else{
+					$$.traducao = $1.traducao + "\t" + $$.label + " = " + $1.label + ";\n";
+				}	
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+			}
+			|
+			{
+				$$.label = "";
+				$$.traducao = "";
+				$$.tipo = "";
+			}
+			;
 
-ATRIBUICAO	: TK_ID '=' E
+DECLARACAO	: TK_TIPO TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
+			{
+				$$ = buscaVariavel($2);
+				if($$.label == "null"){
+					$$.label = gerarNome();
+					$$.nomeVariavel = $2.nomeVariavel;
+					$$.tipo = tipo_declaracao;
+					
+					if($3.traducao != ""){
+						$$.tamanho = $3.tamanho;
+						$$.traducao = $3.traducao +
+						"\t" + $$.label + " = " + $3.label + ";\n" +
+						$4.traducao;
+					}else{
+						$$.tamanho = gerarNome();
+						$$.traducao = $4.traducao;
+						variaveisTemporarias.push_back({.label = $$.tamanho, .tipo = "int"});
+					}
+					pilhaDeMapas.back().mapa.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					tipo_declaracao = "";
+				}else{
+
+				}
+			}
+			| TK_TIPO TK_ID INDICES
+			{
+				$$ = buscaVariavel($2);
+				if($$.label == "null"){
+					$$.label = gerarNome();
+					$$.nomeVariavel = $2.nomeVariavel;
+					$$.tipo = $1.label;
+
+					if($3.label != ""){
+						for(int i=0;i<pilha_indice.size();i++){
+							$$.tamanho_indice.push_back(pilha_indice[i]);
+						}
+						$$.traducao = $3.traducao + "\t" + $$.label + " = (" + $$.tipo + "*)malloc(" + $3.label + " * sizeof(" + $$.tipo + "));\n";
+						$$.tipo += "*";
+					}else{
+						$$.traducao = "";
+					}
+					pilhaDeMapas.back().mapa.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					tipo_declaracao = "";
+					pilha_indice.clear();
+					for(int i=0;i<$$.tamanho_indice.size();i++){
+						cout << $$.tamanho_indice[i] << endl;
+					}
+				}
+			}
+			;
+
+ATRIB_DECLARACAO	: '=' E
+					{
+						$$ = $2;
+					}
+					|
+					{
+						$$.traducao = "";
+					}
+					;
+
+
+MULTIPLAS_DECLARACOES	: ',' TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
+						{
+							if($$.label == "null"){
+								$$.label = gerarNome();
+								$$.nomeVariavel = $2.nomeVariavel;
+								$$.tipo = tipo_declaracao;
+								
+								if($3.traducao != ""){
+									$$.tamanho = $3.tamanho;
+									$$.traducao = $3.traducao +
+									"\t" + $$.label + " = " + $3.label + ";\n" +
+									$4.traducao;
+								}else{
+									$$.tamanho = gerarNome();
+									$$.traducao = $4.traducao;
+									variaveisTemporarias.push_back({.label = $$.tamanho, .tipo = "int"});
+								}
+								pilhaDeMapas.back().mapa.push_back($$);
+								variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+								tipo_declaracao = "";
+							}else{
+
+							}
+						}
+						|
+						{
+							$$.traducao = "";
+						}
+						;
+
+
+
+ATRIBUICAO	: TK_ID INDICES '=' E
+			{
+				$$ = buscaVariavel($1);
+				if($$.label == "null"){
+					if($2.label != ""){
+						$$.label = gerarNome();
+						$$.nomeVariavel = $1.nomeVariavel;
+						$$.tipo = $4.tipo;
+						$$.tamanho_indice = $4.tamanho_indice;
+						$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
+						pilhaDeMapas.back().mapa.push_back($$);
+						variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					}else{
+						
+					}
+				}else{
+					if($2.label != ""){
+						/*atributos indice;
+						indice.label = gerarNome();
+						atributos indice2;
+						indice2.label = gerarNome();
+						atributos pos;
+						pos.label = gerarNome();
+
+						rotulo_condicao = gerarRotulo();
+						rotulo_condicao2 = gerarRotulo();
+						rotulo_fim = gerarRotulo();
+						rotulo_fim2 = gerarRotulo();
+
+
+						$$.traducao = $4.traducao + $2.traducao +
+						"\t" + indice.label + " = 0;\n" +
+						"\t" + pos.label + " = 0;\n" +
+						"\t" + rotulo_condicao + ":\n" +
+						"\tif(!" + indice.label + " < " + to_string(pilha_indice.size()) + ")\n\t\tgoto " + rotulo_fim + ";\n" +
+						"\t" + indice.label + " = " + to_string(pilha_indice.size()) + ";\n" +
+						"\t" + rotulo_condicao2 + ":\n" +
+						"\tif(!" + indice2.label + " < " + to_string(pilha_indice.size()) + ")\n\t\tgoto " + rotulo_fim2 + ";\n" +
+						"\t" + indice.label + " *= " +  + ";\n" +
+						"\t" + indice2.label + "++;\n" +
+						"\tgoto " + rotulo_condicao2 + ";\n" +
+						"\t" + rotulo_fim2 + ":\n" +
+						"\t" + $$.label + " = " + $$.label + " * " + $1.label + ";\n" +
+						"\t" + indice.label + "++;\n" +
+						"\tgoto " + rotulo_condicao + ";\n\t" +
+						rotulo_fim + ":\n";*/
+
+
+						/*$$.traducao = "\t" + 
+						for(int i=0;i<pilha_indice.size();i++){
+							for(int j=i + 1;j<pilha_indice.size();j++){
+								temp *= pilha_indice[j];
+							}
+							pos += temp;
+						}*/
+
+						//$$.traducao = $4.traducao + $2.traducao + "\t" + $$.label + '[' + $2.label + "] = " + $4.label + ";\n";
+					}else{
+						$$.traducao = $4.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
+					}
+				}
+
+				/*variaveisTemporarias.push_back({.label = indice.label, .tipo = "int"});
+				variaveisTemporarias.push_back({.label = indice2.label, .tipo = "int"});
+				variaveisTemporarias.push_back({.label = pos.label, .tipo = "int"});*/
+				pilha_indice.clear();
+			}
+			| TK_ID '=' E
+			{
+				$$ = buscaVariavel($1);
+				if($$.label == "null"){
+					if($2.label != ""){
+						$$.label = gerarNome();
+						$$.nomeVariavel = $1.nomeVariavel;
+						$$.tipo = $3.tipo;
+						$$.tamanho = $3.tamanho;
+						$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
+						pilhaDeMapas.back().mapa.push_back($$);
+						variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					}else{
+
+					}
+				}else{
+					$$.traducao = $3.traducao +
+					"\t" + $$.tamanho + " = " + $3.tamanho + ";\n" + 
+					+ "\t" + $$.label + " = " + $3.label + ";\n";
+				}
+			}
+			| TK_ID '=' TK_BOOL
 			{
 				$$ = buscaVariavel($1);
 				if($$.label == "null"){
 					$$.label = gerarNome();
 					$$.nomeVariavel = $1.nomeVariavel;
 					$$.tipo = $3.tipo;
-					$$.tamanho = $3.tamanho;
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
-					atributos temp = $$;
-					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
-					variaveisTemporarias.push_back($$);
+					pilhaDeMapas.back().mapa.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				}else{
+					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
+				}
+			}
+			| TK_ID '=' TK_CHAR
+			{
+				$$ = buscaVariavel($1);
+				if($$.label == "null"){
+					$$.label = gerarNome();
+					$$.nomeVariavel = $1.nomeVariavel;
+					$$.tipo = $3.tipo;
+					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
+					pilhaDeMapas.back().mapa.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 				}
@@ -464,40 +717,25 @@ ATRIBUICAO	: TK_ID '=' E
 					$$.label = gerarNome();
 					$$.nomeVariavel = $2.nomeVariavel;
 					$$.tipo = $1.label;
-					$$.tamanho = $4.tamanho;
 					$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
-					atributos temp = $$;
-					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
-					variaveisTemporarias.push_back($$);
+
+					pilhaDeMapas.back().mapa.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
-					$$.label = 
 					$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
 				}
 			}
-			| TK_TIPO TK_ID
-			{
-				$$ = buscaVariavel($2);
-				if($$.label == "null"){
-					$$.label = gerarNome();
-					$$.nomeVariavel = $2.nomeVariavel;
-					$$.tipo = $1.label;					
-					atributos temp = $$;
-					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
-					variaveisTemporarias.push_back($$);
-				}
-			}
-			| TK_ID '=' LR
+			| TK_ID '=' L
 			{
 				$$ = buscaVariavel($1);
 				if($$.label == "null"){
 					$$.label = gerarNome();
 					$$.nomeVariavel = $1.nomeVariavel;
 					$$.tipo = $3.tipo;
-					$$.tamanho = $3.tamanho;
+					
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
-					atributos temp = $$;
-					pilhaDeMapas[pilhaDeMapas.size() - 1].mapa.push_back(temp);
-					variaveisTemporarias.push_back($$);
+					pilhaDeMapas.back().mapa.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 				}
@@ -528,14 +766,16 @@ E 			: '(' E ')'
 			}
 			| E TK_ARITMETICO E
 			{
-				if($1.tipo == "string" || $3.tipo == "string"){
-					$$.tamanho = $1.tamanho + $3.tamanho - 1;
-					$$.tipo = "string";
+				if($1.tipo == "string" && $3.tipo == "string"){
 					$$.label = gerarNome();
-					ostringstream convert;
-					convert << $$.tamanho;
-					$$.tipo = $1.tipo;	
-					$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = (char*)malloc(" + convert.str() + " * sizeof(char)" + ");\n\t" + $$.label + "[0] = \'\\0\';\n" + "\tstrcat(" + $$.label + "," + $1.label + ");\n\tstrcat(" + $$.label + "," + $3.label + ");\n";
+					$$.tamanho = gerarNome();
+					$$.tipo = "string";
+					$$.traducao = $1.traducao + $3.traducao + "\t" + $$.tamanho + " = " + $1.tamanho + " + " + $3.tamanho + ";\n" +
+					"\t" + $$.label + " = (char*)malloc(" + $$.tamanho + " * sizeof(char)" + ");\n\t" + 
+					$$.label + "[0] = \'\\0\';\n" + 
+					"\tstrcat(" + $$.label + "," + $1.label + ");\n" + 
+					"\tstrcat(" + $$.label + "," + $3.label + ");\n";
+					variaveisTemporarias.push_back({.label = $$.tamanho, .tipo = "int"});
 				}
 				else{
 					$$.label = gerarNome();
@@ -552,16 +792,50 @@ E 			: '(' E ')'
 						}else{
 							$$.traducao = $1.traducao + $3.traducao + "\t" + tempCastVar.label + " = (float)" + $3.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + tempCastVar.label + ";\n";
 						}
-						variaveisTemporarias.push_back(tempCastVar);
+						variaveisTemporarias.push_back({.label = tempCastVar.label, .tipo = tempCastVar.tipo});
 					}
 				}
-				variaveisTemporarias.push_back($$);
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+			}
+			| E TK_EXP E
+			{
+				$$.label = gerarNome();
+				$$.tipo = "float";
+
+				atributos tempVarInic;
+				tempVarInic.label = gerarNome();
+				tempVarInic.tipo = "int";
+				tempVarInic.traducao = "\t" + tempVarInic.label + " = 0;\n"; 
+
+				string rotulo_condicao = gerarRotulo();
+				string rotulo_fim = gerarRotulo();
+				
+				$$.traducao = $1.traducao + $3.traducao +
+				"\t" + $$.label + " = 1;\n" +
+				"\tif(" + $3.label + " == 0)\n\t\t" + "goto " + rotulo_fim + ";\n" +
+				"\t" + tempVarInic.label + " = 0;\n" +
+				"\t" + rotulo_condicao + ":\n" +
+				"\tif(!(" + tempVarInic.label + " < " + "abs(" + $3.label + ")))\n\t\tgoto " + rotulo_fim + ";\n" +
+				"\t" + $$.label + " = " + $$.label + " * " + $1.label + ";\n" +
+				"\t" + tempVarInic.label + "++;\n" +
+				"\tgoto " + rotulo_condicao + ";\n\t" +
+				rotulo_fim + ":\n" +
+				"\tif(" + $3.label + " < 0)\n\t" +
+				"\t" + $$.label + " = 1 / " + $$.label + ";\n";
+
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.push_back({.label = tempVarInic.label, .tipo = tempVarInic.tipo});
+			}
+			| E TK_PORCENTAGEM E
+			{
+				$$.label = gerarNome();
+				$$.tipo = "float";
+				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " * " + $3.label + ";\n\t" + $$.label + " = " + $$.label + " / 100;\n";
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| TK_CAST E
 			{
-				$$ = $2;
-				$$.label = gerarNome();
-				
+				$$.label = gerarNome();				
 				if($1.label == "(float)"){
 					$$.tipo = "float";
 					$$.traducao = $2.traducao + "\t" + $$.label + " = (float)" + $2.label + ";\n";
@@ -569,14 +843,14 @@ E 			: '(' E ')'
 					$$.tipo = "int";
 					$$.traducao = $2.traducao + "\t" + $$.label + " = (int)" + $2.label + ";\n";
 				}
-				variaveisTemporarias.push_back($$);
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| TK_NUM
 			{
-				$$ = $1;
 				$$.label = gerarNome();
+				$$.tipo = $1.tipo;
 				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-				variaveisTemporarias.push_back($$);
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| TK_ARITMETICO E
 			{
@@ -584,45 +858,30 @@ E 			: '(' E ')'
 					$$ = $2;
 					$$.label = gerarNome();
 					$$.traducao = $2.traducao + "\t" + $$.label + " = -" + $2.label + ";\n";
-					variaveisTemporarias.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
 					yyerror("Sinal incorreto");
 				}
-				
 			}
-			| TK_ID
+			| TK_ID INDICES
 			{
 				$$ = buscaVariavel($1);
 				if($$.label == "null"){
 					yyerror("Error-> Variavel nao declarada");
 				}
 			}
-			| TK_BOOL
-			{
-				$$ = $1;
-				$$.label = gerarNome();
-				variaveisTemporarias.push_back($$);
-				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-			}
-			| TK_CHAR
-			{
-				$$ = $1;
-				$$.label = gerarNome();
-				variaveisTemporarias.push_back($$);
-				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-			}
 			| TK_STRING
 			{
-				$$ = $1;
-				$$.label = $1.label.substr(1, $1.label.size() - 1);
-				ostringstream convert;
-				convert << $$.label.size();
-				$$.tamanho = $$.label.size();
 				$$.label = gerarNome();
-				variaveisTemporarias.push_back($$);
-				$$.traducao = "\t" + $$.label + " = (char*)malloc(" + convert.str() + " * sizeof(char));\n\tstrcpy(" + $$.label + ", " + $1.label + ");\n";
+				$$.tamanho = gerarNome();
+				$$.tipo = $1.tipo;
+				$$.traducao = "\t" + $$.tamanho + " = " + to_string($1.label.size() - 1) + ";\n\t" + $$.label + " = (char*)malloc(" + $$.tamanho + " * sizeof(char));\n\tstrcpy(" + $$.label + ", " + $1.label + ");\n";
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.push_back({.label = $$.tamanho, .tipo = "int"});
 			}
 			;
+
+
 
 PRINT		: TK_PRINT '(' TK_ID ')'
 			{
@@ -632,43 +891,55 @@ PRINT		: TK_PRINT '(' TK_ID ')'
 				else
 					yyerror("Error-> Variavel nao declarada");
 			}
+			| TK_PRINT '(' TK_STRING ')'
+			{
+				$$.traducao = "\tcout << " + $3.label + " << endl;\n";
+			}
+			| TK_PRINT '(' TK_NUM ')'
+			{
+				$$.traducao = "\tcout << " + $3.label + " << endl;\n";
+			}
+			| TK_PRINT '(' E ')'
+			{
+				$$.traducao = $3.traducao + "\tcout << " + $3.label + " << endl;\n";
+			}
 			;
 
 
 SCAN		: EMPILHA TK_SCAN '(' TK_ID ')'
 			{
-				string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
-
-				atributos stringRead;
-				stringRead.label = gerarNome();
-				stringRead.tipo = "string";
-
-				atributos tempChar;
-				tempChar.label = gerarNome();
-				tempChar.tipo = "char";
-
-				atributos contador;
-				contador.label = gerarNome();
-				contador.tipo = "int";
-				
 				atributos temp = buscaVariavel($4);
 
-				$$.traducao = "\t" + contador.label + " = 0;\n" +
-				"\t" + stringRead.label + " = (char*)malloc(sizeof(char));\n" +
-				"\t" + rotulo_bloco + ":\n" +
-				"\t" + tempChar.label + " = getchar();\n" +
-				"\t" + stringRead.label + " = (char*)realloc(" + stringRead.label + ", " + contador.label + " + 1);\n" +
-				"\t" + stringRead.label + "[" + contador.label + "]" + " = " + tempChar.label + ";\n" +
-				"\t" + contador.label + "++;\n" +
-				"\tif(" + tempChar.label + " != \'\\n\')\n\t\tgoto " + rotulo_bloco + ";\n" +
-				"\t" + stringRead.label + "[" + contador.label + "] = \'\\0\';\n" +
-				"\t" + temp.label + " = " + stringRead.label + ";\n";
-				//$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
-				
+				if(temp.tipo == "string"){
+					string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
 
-				variaveisTemporarias.push_back(stringRead);
-				variaveisTemporarias.push_back(tempChar);
-				variaveisTemporarias.push_back(contador);
+
+					temporaria stringRead = {.label = gerarNome(), .tipo = "string"};
+					temporaria tempChar = {.label = gerarNome(), .tipo = "char"};
+					temporaria contador = {.label = gerarNome(), .tipo = "int"};
+
+					
+					$$.traducao = "\t" + contador.label + " = 0;\n" +
+					"\t" + stringRead.label + " = (char*)malloc(sizeof(char));\n" +
+					"\t" + rotulo_bloco + ":\n" +
+					"\t" + tempChar.label + " = getchar();\n" +
+					"\t" + stringRead.label + " = (char*)realloc(" + stringRead.label + ", " + contador.label + " + 1);\n" +
+					"\t" + stringRead.label + "[" + contador.label + "]" + " = " + tempChar.label + ";\n" +
+					"\t" + contador.label + "++;\n" +
+					"\tif(" + tempChar.label + " != \'\\n\')\n\t\tgoto " + rotulo_bloco + ";\n" +
+					"\t" + stringRead.label + "[" + contador.label + "] = \'\\0\';\n" +
+					"\tfree(" + temp.label + ");\n" +
+					"\t" + temp.label + " = " + stringRead.label + ";\n" +
+					"\t" + temp.tamanho + " = " + contador.label + ";\n";
+					//$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
+					
+					variaveisTemporarias.push_back({.label = stringRead.label, .tipo = stringRead.tipo});
+					variaveisTemporarias.push_back({.label = tempChar.label, .tipo = tempChar.tipo});
+					variaveisTemporarias.push_back({.label = contador.label, .tipo = contador.tipo});
+
+				}else if(temp.tipo == "int" || temp.tipo == "float" || temp.tipo == "char"){
+					$$.traducao = "\tcin >> " + temp.label + ";\n";
+				}
 			}
 			;
 
@@ -686,3 +957,10 @@ void yyerror( string MSG )
 	cout << MSG << endl;
 	exit (0);
 }
+
+/*
+Consertar:
+- free antes de sobrepor ponteiro string
+- remover "nomeVariavel" criando outra struct
+
+*/

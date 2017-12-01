@@ -1,6 +1,6 @@
 flex lexica.l
 bison -d sintatica.y
-g++ -std=gnu++11 sintatica.tab.c -o GeradorIntermediario
+g++ sintatica.tab.c -o GeradorIntermediario -std=gnu++11
 GeradorIntermediario < exemplo.gambiart
 g++ out.cpp -o GambiArtLanguageCompilado
 GambiArtLanguageCompilado

@@ -25,7 +25,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "(float)"|"(int)"   {yylval.label = yytext; return TK_CAST;}
 
-"int"|"float"|"char"|"string"    {yylval.label = yytext; return TK_TIPO;}
+"int"|"float"|"char"|"string"    {yylval.label = yytext; tipo_declaracao = yylval.label; return TK_TIPO;}
 
 "if"    {return TK_IF;}
 
@@ -59,11 +59,17 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "+="|"-="|"*="|"/=" {yylval.traducao = yytext; return TK_INCREM_ATRIB_ABREV;}
 
-"<"|">"|"<="|">="|"!="|"=="|"||"|"&&" {yylval.traducao = yytext; return TK_LR;}
+"<"|">"|"<="|">="|"!="|"==" {yylval.traducao = yytext; return TK_OPR;}
+
+"||"|"&&"|"!"  {yylval.traducao = yytext; return TK_OPL;}
 
 "/*" {return TK_INIT_COMMENT;}
 
 "*/" {return TK_END_COMMENT;}
+
+"**"	{return TK_EXP;}
+
+"%%"	{return TK_PORCENTAGEM;}
 
 [(){}[\];,:]	{ return *yytext; }
 
