@@ -1,6 +1,8 @@
 %{
 #include <string>
 
+int lines = 0;
+
 %}
 
 ESPACO [ \t]
@@ -19,7 +21,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 %%
 
-"\n"   { }
+"\n"   { lines++; }
 
 {DELIM} 	{}
 

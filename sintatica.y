@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sstream>
 #include <map>
+#include <algorithm>
 
 #define YYSTYPE atributos
 
@@ -27,6 +28,8 @@ map<string, string> traducao_tipos = {{"int", "int"},
 									{"float*", "float*"},
 									{"char*", "char*"}};
 
+string tipos_ponteiros[] = {"int*", "float*", "char*"};
+
 
 /////////////////////////
 struct atributos{
@@ -35,7 +38,7 @@ struct atributos{
 	string traducao;
 	string tipo;
 	string tamanho;
-	vector<string> tamanho_indice;
+	string vetor_indices;
 };
 
 struct temporaria{
@@ -51,6 +54,7 @@ struct mapaDeVariaveis{
 	string rotulo_fim;
 };
 
+
 ////////////////////////////////
 
 
@@ -63,17 +67,16 @@ vector<temporaria> variaveisTemporarias;
 vector<string> pilha_indice;
 string tipo_declaracao;
 
+
 string traducao_tipo(string tipo){
 	return traducao_tipos.find(tipo)->second;
 }
 
 string freeMallocs(){
 	string retorno;
-	for(int i=0;i<variaveisTemporarias.size();i++){
-		if(variaveisTemporarias[i].tipo == "string"){
+	for(int i=0;i<variaveisTemporarias.size();i++)
+		if(find(begin(tipos_ponteiros), end(tipos_ponteiros), variaveisTemporarias[i].tipo) != end(tipos_ponteiros))
 			retorno += "\tfree(" + variaveisTemporarias[i].label + ");\n";
-		}
-	}
 	return retorno;
 }
 
@@ -531,22 +534,28 @@ DECLARACAO	: TK_TIPO TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
 					$$.nomeVariavel = $2.nomeVariavel;
 					$$.tipo = $1.label;
 
+					atributos temp_vetor;
+					temp_vetor.label = gerarNome();
+					temp_vetor.tipo = "int*";
+
 					if($3.label != ""){
-						for(int i=0;i<pilha_indice.size();i++){
-							$$.tamanho_indice.push_back(pilha_indice[i]);
-						}
 						$$.traducao = $3.traducao + "\t" + $$.label + " = (" + $$.tipo + "*)malloc(" + $3.label + " * sizeof(" + $$.tipo + "));\n";
+						$$.traducao += "\t" + temp_vetor.label + " = (int*)malloc(" + to_string(pilha_indice.size()) + " * sizeof(int));\n";
+						for(int i=0;i<pilha_indice.size();i++){
+							$$.vetor_indices = temp_vetor.label;
+							$$.traducao += "\t" + temp_vetor.label + "[" + to_string(i) + "]" + " = " + pilha_indice[i] + ";\n";
+
+						}
 						$$.tipo += "*";
+						$$.tamanho = to_string(pilha_indice.size());
 					}else{
 						$$.traducao = "";
 					}
 					pilhaDeMapas.back().mapa.push_back($$);
 					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					variaveisTemporarias.push_back({.label = temp_vetor.label, .tipo = temp_vetor.tipo});
 					tipo_declaracao = "";
 					pilha_indice.clear();
-					for(int i=0;i<$$.tamanho_indice.size();i++){
-						cout << $$.tamanho_indice[i] << endl;
-					}
 				}
 			}
 			;
@@ -602,7 +611,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 						$$.label = gerarNome();
 						$$.nomeVariavel = $1.nomeVariavel;
 						$$.tipo = $4.tipo;
-						$$.tamanho_indice = $4.tamanho_indice;
+						$$.vetor_indices = $4.vetor_indices;
 						$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
 						pilhaDeMapas.back().mapa.push_back($$);
 						variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
@@ -611,54 +620,54 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 					}
 				}else{
 					if($2.label != ""){
-						/*atributos indice;
-						indice.label = gerarNome();
-						atributos indice2;
-						indice2.label = gerarNome();
-						atributos pos;
-						pos.label = gerarNome();
+						atributos contador1 = {.label = gerarNome()};
+						atributos contador2 = {.label = gerarNome()};
+						atributos tempIndice = {.label = gerarNome()};
+						atributos indiceFinal = {.label = gerarNome()};
+						atributos reqIndice = {.label = gerarNome()};
 
-						rotulo_condicao = gerarRotulo();
-						rotulo_condicao2 = gerarRotulo();
-						rotulo_fim = gerarRotulo();
-						rotulo_fim2 = gerarRotulo();
-
+						string rotulo_condicao = gerarRotulo();
+						string rotulo_condicao2 = gerarRotulo();
+						string rotulo_fim = gerarRotulo();
+						string rotulo_fim2 = gerarRotulo();
 
 						$$.traducao = $4.traducao + $2.traducao +
-						"\t" + indice.label + " = 0;\n" +
-						"\t" + pos.label + " = 0;\n" +
+						"\t" + reqIndice.label + " = (int*)malloc(" + to_string(pilha_indice.size()) + " * sizeof(int));\n";
+
+						for(int i=0;i<pilha_indice.size();i++)
+							$$.traducao += "\t" + reqIndice.label + "[" + to_string(i) + "] = " + pilha_indice[i] + ";\n";
+
+						$$.traducao += "\t" + contador1.label + " = 0;\n" +
+						"\t" + tempIndice.label + " = 0;\n" +
+						"\t" + indiceFinal.label + " = 0;\n" +
 						"\t" + rotulo_condicao + ":\n" +
-						"\tif(!" + indice.label + " < " + to_string(pilha_indice.size()) + ")\n\t\tgoto " + rotulo_fim + ";\n" +
-						"\t" + indice.label + " = " + to_string(pilha_indice.size()) + ";\n" +
+						"\tif(!(" + contador1.label + " < " + $$.tamanho + "))\n\t\tgoto " + rotulo_fim + ";\n" +
+						"\t" + contador2.label + " = " + contador1.label + " + 1;\n" +
+						"\t" + tempIndice.label + " = " + reqIndice.label + "[" + contador1.label + "];\n" +
 						"\t" + rotulo_condicao2 + ":\n" +
-						"\tif(!" + indice2.label + " < " + to_string(pilha_indice.size()) + ")\n\t\tgoto " + rotulo_fim2 + ";\n" +
-						"\t" + indice.label + " *= " +  + ";\n" +
-						"\t" + indice2.label + "++;\n" +
+						"\tif(!(" + contador2.label + " < " + $$.tamanho + "))\n\t\tgoto " + rotulo_fim2 + ";\n" +
+						"\t" + tempIndice.label + " = " + tempIndice.label + " * " + $$.vetor_indices + "[" + contador2.label + "]" + ";\n" +
+						"\t" + contador2.label + "++;\n" +
 						"\tgoto " + rotulo_condicao2 + ";\n" +
 						"\t" + rotulo_fim2 + ":\n" +
-						"\t" + $$.label + " = " + $$.label + " * " + $1.label + ";\n" +
-						"\t" + indice.label + "++;\n" +
+						"\t" + indiceFinal.label + " = " + indiceFinal.label + " + " + tempIndice.label + ";\n" +
+						"\t" + contador1.label + "++;\n" +
 						"\tgoto " + rotulo_condicao + ";\n\t" +
-						rotulo_fim + ":\n";*/
+						rotulo_fim + ":\n" +
+						"\t" + $$.label + "[" + indiceFinal.label + "] = " + $4.label + ";\n" +
+						"\tcout << \'\\n\' << endl;\n" +
+						"\tcout << var_19 << endl;\n" +
+						"\tcout << var_7[var_19] << endl;\n";
 
-
-						/*$$.traducao = "\t" + 
-						for(int i=0;i<pilha_indice.size();i++){
-							for(int j=i + 1;j<pilha_indice.size();j++){
-								temp *= pilha_indice[j];
-							}
-							pos += temp;
-						}*/
-
-						//$$.traducao = $4.traducao + $2.traducao + "\t" + $$.label + '[' + $2.label + "] = " + $4.label + ";\n";
+						variaveisTemporarias.push_back({.label = contador1.label, .tipo = "int"});
+						variaveisTemporarias.push_back({.label = contador2.label, .tipo = "int"});
+						variaveisTemporarias.push_back({.label = tempIndice.label, .tipo = "int"});
+						variaveisTemporarias.push_back({.label = indiceFinal.label, .tipo = "int"});
+						variaveisTemporarias.push_back({.label = reqIndice.label, .tipo = "int*"});
 					}else{
 						$$.traducao = $4.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 					}
 				}
-
-				/*variaveisTemporarias.push_back({.label = indice.label, .tipo = "int"});
-				variaveisTemporarias.push_back({.label = indice2.label, .tipo = "int"});
-				variaveisTemporarias.push_back({.label = pos.label, .tipo = "int"});*/
 				pilha_indice.clear();
 			}
 			| TK_ID '=' E
