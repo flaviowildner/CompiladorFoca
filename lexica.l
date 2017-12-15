@@ -1,7 +1,6 @@
 %{
 #include <string>
 
-int lines = 0;
 
 %}
 

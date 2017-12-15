@@ -13,6 +13,7 @@
 
 using namespace std;
 
+int lines = 1;
 
 FILE *out_file;
 
@@ -59,7 +60,7 @@ struct mapaDeVariaveis{
 
 
 int yylex(void);
-void yyerror(string);
+void yyerror(string mensagem);
 
 
 vector<mapaDeVariaveis> pilhaDeMapas;
@@ -121,6 +122,7 @@ atributos buscaVariavel(atributos alvo){
 	retorno.label = "null";
 	return retorno;
 }
+
 
 %}
 
@@ -240,10 +242,47 @@ COMANDO 	: E ';'
 			| SWITCH
 			| BREAK ';'
 			| CONTINUE ';'
+			| FUNCAO
 			| COMENTARIOS
 			;
 
+
+FUNCAO		: TK_ID '(' PARAMETROS ')' EMPILHA BLOCO
+			{
+				$$.traducao = $3.traducao;
+				pilhaDeMapas.pop_back();
+			}
+			;
+
+PARAMETROS	: E PARAMETRO
+			{
+				$$.label = gerarNome();
+				$$.tipo = $1.tipo;
+				$$.traducao = $2.traducao + "\t" + $$.label + " = " + $1.label + ";\n";
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+			}
+			;
+
+PARAMETRO	: ',' E PARAMETRO
+			{
+				$$.label = gerarNome();
+				$$.tipo = $2.tipo;
+				$$.traducao = $3.traducao + "\t" + $$.label + " = " + $2.label + ";\n";
+
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+			}
+			|
+			{
+				$$.traducao = "";
+			}
+			;
+
+
 COMENTARIOS : TK_INIT_COMMENT COMANDOS TK_END_COMMENT
+			{
+				$$.traducao = "";
+			}
+			| "//" COMANDO '\n'
 			{
 				$$.traducao = "";
 			}
@@ -375,7 +414,7 @@ SWITCH_COND : TK_ID
 			{
 				$1 = buscaVariavel($1);
 				if($1.label == "null"){
-					yyerror("Error-> Variavel nao declarada");
+					yyerror("Variavel nao declarada");
 				}
 				pilhaDeMapas.back().mapa.push_back($1);
 			}
@@ -413,7 +452,7 @@ CASE_VALOR	: TK_NUM
 			{
 				$$ = buscaVariavel($1);
 				if($$.label == "null"){
-					yyerror("Error-> Variavel nao declarada");
+					yyerror("Variavel nao declarada");
 				}
 			}
 			| TK_CHAR
@@ -481,8 +520,7 @@ INDICE 		: '[' E ']'
 			}
 			;
 
-
-INDICES		: INDICE INDICES
+INDICE_REC	: INDICE INDICE_REC
 			{
 				$$.label = gerarNome();
 				$$.tipo = "int";
@@ -501,62 +539,16 @@ INDICES		: INDICE INDICES
 			}
 			;
 
-DECLARACAO	: TK_TIPO TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
+INDICES		: INDICE INDICE_REC
 			{
-				$$ = buscaVariavel($2);
-				if($$.label == "null"){
-					$$.label = gerarNome();
-					$$.nomeVariavel = $2.nomeVariavel;
-					$$.tipo = tipo_declaracao;
-					
-					if($3.traducao != ""){
-						$$.tamanho = $3.tamanho;
-						$$.traducao = $3.traducao +
-						"\t" + $$.label + " = " + $3.label + ";\n" +
-						$4.traducao;
-					}else{
-						$$.tamanho = gerarNome();
-						$$.traducao = $4.traducao;
-						variaveisTemporarias.push_back({.label = $$.tamanho, .tipo = "int"});
-					}
-					pilhaDeMapas.back().mapa.push_back($$);
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-					tipo_declaracao = "";
+				$$.label = gerarNome();
+				$$.tipo = "int";
+				if($2.label != ""){
+					$$.traducao = $1.traducao + $2.traducao + "\t" + $$.label + " = " + $1.label + " * " + $2.label + ";\n";
 				}else{
-
-				}
-			}
-			| TK_TIPO TK_ID INDICES
-			{
-				$$ = buscaVariavel($2);
-				if($$.label == "null"){
-					$$.label = gerarNome();
-					$$.nomeVariavel = $2.nomeVariavel;
-					$$.tipo = $1.label;
-
-					atributos temp_vetor;
-					temp_vetor.label = gerarNome();
-					temp_vetor.tipo = "int*";
-
-					if($3.label != ""){
-						$$.traducao = $3.traducao + "\t" + $$.label + " = (" + $$.tipo + "*)malloc(" + $3.label + " * sizeof(" + $$.tipo + "));\n";
-						$$.traducao += "\t" + temp_vetor.label + " = (int*)malloc(" + to_string(pilha_indice.size()) + " * sizeof(int));\n";
-						for(int i=0;i<pilha_indice.size();i++){
-							$$.vetor_indices = temp_vetor.label;
-							$$.traducao += "\t" + temp_vetor.label + "[" + to_string(i) + "]" + " = " + pilha_indice[i] + ";\n";
-
-						}
-						$$.tipo += "*";
-						$$.tamanho = to_string(pilha_indice.size());
-					}else{
-						$$.traducao = "";
-					}
-					pilhaDeMapas.back().mapa.push_back($$);
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-					variaveisTemporarias.push_back({.label = temp_vetor.label, .tipo = temp_vetor.tipo});
-					tipo_declaracao = "";
-					pilha_indice.clear();
-				}
+					$$.traducao = $1.traducao + "\t" + $$.label + " = " + $1.label + ";\n";
+				}	
+				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			;
 
@@ -571,8 +563,116 @@ ATRIB_DECLARACAO	: '=' E
 					;
 
 
+
+ATRIB_ARRAY			: '=' '{' ATRIB_MATRIX '}'
+					{
+
+					}
+					|
+					{
+						$$.traducao = "";
+					}
+					;
+
+
+
+ATRIB_MATRIX		: TERM REC_MATRIX
+					{
+						
+					}
+					| '{' ATRIB_MATRIX '}'
+					{
+
+					}
+					;
+
+REC_MATRIX			: ',' ATRIB_MATRIX
+					{
+
+					}
+					|
+					{
+						$$.traducao = "";
+					}
+					;
+
+
+TERM				: E
+					{
+
+					}
+					|
+					{
+						$$.traducao = "";
+					}
+					;
+
+
+DECLARACAO	: TK_TIPO TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
+			{
+				$$.label = gerarNome();
+				$$.nomeVariavel = $2.nomeVariavel;
+				$$.tipo = tipo_declaracao;
+				
+				if($3.traducao != ""){
+					$$.tamanho = $3.tamanho;
+					$$.traducao = $3.traducao +
+					"\t" + $$.label + " = " + $3.label + ";\n" +
+					$4.traducao;
+
+					pilhaDeMapas.back().mapa.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					tipo_declaracao = "";
+
+				}else{
+					$$.traducao = $4.traducao;
+					pilhaDeMapas.back().mapa.push_back($$);
+					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				}
+			}
+			| TK_TIPO TK_ID INDICES ATRIB_ARRAY MULTIPLAS_DECLARACOES
+			{
+				$$ = buscaVariavel($2);
+				
+				if($$.label == "null"){
+					if($3.label != ""){
+						$$.label = gerarNome();
+						$$.nomeVariavel = $2.nomeVariavel;
+						$$.tipo = tipo_declaracao;
+
+						atributos temp_vetor;
+						temp_vetor.label = gerarNome();
+						temp_vetor.tipo = "int*";
+
+						//TRADUCAO
+						$$.traducao = $3.traducao + "\t" + $$.label + " = (" + $$.tipo + "*)malloc(" + $3.label + " * sizeof(" + $$.tipo + "));\n";
+						$$.traducao += "\t" + temp_vetor.label + " = (int*)malloc(" + to_string(pilha_indice.size()) + " * sizeof(int));\n";
+						for(int i=0;i<pilha_indice.size();i++){
+							$$.vetor_indices = temp_vetor.label;
+							$$.traducao += "\t" + temp_vetor.label + "[" + to_string(i) + "]" + " = " + pilha_indice[i] + ";\n";
+						}
+						$$.traducao += $5.traducao;
+						//
+
+						$$.tipo += "*";
+						$$.tamanho = to_string(pilha_indice.size());
+
+						pilhaDeMapas.back().mapa.push_back($$);
+						variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+						variaveisTemporarias.push_back({.label = temp_vetor.label, .tipo = temp_vetor.tipo});
+						tipo_declaracao = "";
+						pilha_indice.clear();
+					}
+				}
+				else{
+
+				}
+			}
+			;
+
 MULTIPLAS_DECLARACOES	: ',' TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
 						{
+							$$ = buscaVariavel($2);
 							if($$.label == "null"){
 								$$.label = gerarNome();
 								$$.nomeVariavel = $2.nomeVariavel;
@@ -583,15 +683,51 @@ MULTIPLAS_DECLARACOES	: ',' TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
 									$$.traducao = $3.traducao +
 									"\t" + $$.label + " = " + $3.label + ";\n" +
 									$4.traducao;
+
+									pilhaDeMapas.back().mapa.push_back($$);
+									variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+
 								}else{
-									$$.tamanho = gerarNome();
 									$$.traducao = $4.traducao;
-									variaveisTemporarias.push_back({.label = $$.tamanho, .tipo = "int"});
+									variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 								}
-								pilhaDeMapas.back().mapa.push_back($$);
-								variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-								tipo_declaracao = "";
+								
 							}else{
+
+							}
+						}
+						| ',' TK_ID INDICES ATRIB_ARRAY MULTIPLAS_DECLARACOES
+						{
+							$$ = buscaVariavel($2);
+							if($$.label == "null"){
+								if($3.label != ""){
+									$$.label = gerarNome();
+									$$.nomeVariavel = $2.nomeVariavel;
+									$$.tipo = tipo_declaracao;
+
+									atributos temp_vetor;
+									temp_vetor.label = gerarNome();
+									temp_vetor.tipo = "int*";
+
+									$$.traducao = $3.traducao + "\t" + $$.label + " = (" + $$.tipo + "*)malloc(" + $3.label + " * sizeof(" + $$.tipo + "));\n";
+									$$.traducao += "\t" + temp_vetor.label + " = (int*)malloc(" + to_string(pilha_indice.size()) + " * sizeof(int));\n";
+									for(int i=0;i<pilha_indice.size();i++){
+										$$.vetor_indices = temp_vetor.label;
+										$$.traducao += "\t" + temp_vetor.label + "[" + to_string(i) + "]" + " = " + pilha_indice[i] + ";\n";
+									}
+									$$.traducao += $5.traducao;
+
+
+									$$.tipo += "*";
+									$$.tamanho = to_string(pilha_indice.size());
+
+									pilhaDeMapas.back().mapa.push_back($$);
+									variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+									variaveisTemporarias.push_back({.label = temp_vetor.label, .tipo = temp_vetor.tipo});
+									pilha_indice.clear();
+								}
+							}
+							else{
 
 							}
 						}
@@ -654,10 +790,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 						"\t" + contador1.label + "++;\n" +
 						"\tgoto " + rotulo_condicao + ";\n\t" +
 						rotulo_fim + ":\n" +
-						"\t" + $$.label + "[" + indiceFinal.label + "] = " + $4.label + ";\n" +
-						"\tcout << \'\\n\' << endl;\n" +
-						"\tcout << var_19 << endl;\n" +
-						"\tcout << var_7[var_19] << endl;\n";
+						"\t" + $$.label + "[" + indiceFinal.label + "] = " + $4.label + ";\n";
 
 						variaveisTemporarias.push_back({.label = contador1.label, .tipo = "int"});
 						variaveisTemporarias.push_back({.label = contador2.label, .tipo = "int"});
@@ -687,7 +820,6 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 					}
 				}else{
 					$$.traducao = $3.traducao +
-					"\t" + $$.tamanho + " = " + $3.tamanho + ";\n" + 
 					+ "\t" + $$.label + " = " + $3.label + ";\n";
 				}
 			}
@@ -753,7 +885,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 			{
 				$$ = buscaVariavel($1);				
 				if($$.label == "null"){
-					yyerror("Error-> Variavel nao declarada");
+					yyerror("Variavel nao declarada");
 				}else{
 					$$.traducao = "\t" + $$.label + " = " + $$.label + " " + $2.traducao[0] + " 1;\n";
 				}
@@ -762,7 +894,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 			{
 				$$ = buscaVariavel($1);				
 				if($$.label == "null"){
-					yyerror("Error-> Variavel nao declarada");
+					yyerror("Variavel nao declarada");
 				}else{
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $$.label + " " + $2.traducao[0] + " " + $3.label + ";\n";
 				}
@@ -872,11 +1004,62 @@ E 			: '(' E ')'
 					yyerror("Sinal incorreto");
 				}
 			}
-			| TK_ID INDICES
+			| TK_ID
 			{
 				$$ = buscaVariavel($1);
 				if($$.label == "null"){
-					yyerror("Error-> Variavel nao declarada");
+					yyerror("Variavel nao declarada");
+				}
+			}
+			| TK_ID INDICES
+			{
+				cout << "BB" << endl;
+				$$ = buscaVariavel($1);
+				if($$.label == "null"){
+					yyerror("Variavel nao declarada");
+				}else{
+						atributos contador1 = {.label = gerarNome()};
+						atributos contador2 = {.label = gerarNome()};
+						atributos tempIndice = {.label = gerarNome()};
+						atributos indiceFinal = {.label = gerarNome()};
+						atributos reqIndice = {.label = gerarNome()};
+
+						string rotulo_condicao = gerarRotulo();
+						string rotulo_condicao2 = gerarRotulo();
+						string rotulo_fim = gerarRotulo();
+						string rotulo_fim2 = gerarRotulo();
+
+						$$.traducao = $2.traducao +
+						"\t" + reqIndice.label + " = (int*)malloc(" + to_string(pilha_indice.size()) + " * sizeof(int));\n";
+
+						for(int i=0;i<pilha_indice.size();i++)
+							$$.traducao += "\t" + reqIndice.label + "[" + to_string(i) + "] = " + pilha_indice[i] + ";\n";
+
+						$$.traducao += "\t" + contador1.label + " = 0;\n" +
+						"\t" + tempIndice.label + " = 0;\n" +
+						"\t" + indiceFinal.label + " = 0;\n" +
+						"\t" + rotulo_condicao + ":\n" +
+						"\tif(!(" + contador1.label + " < " + $$.tamanho + "))\n\t\tgoto " + rotulo_fim + ";\n" +
+						"\t" + contador2.label + " = " + contador1.label + " + 1;\n" +
+						"\t" + tempIndice.label + " = " + reqIndice.label + "[" + contador1.label + "];\n" +
+						"\t" + rotulo_condicao2 + ":\n" +
+						"\tif(!(" + contador2.label + " < " + $$.tamanho + "))\n\t\tgoto " + rotulo_fim2 + ";\n" +
+						"\t" + tempIndice.label + " = " + tempIndice.label + " * " + $$.vetor_indices + "[" + contador2.label + "]" + ";\n" +
+						"\t" + contador2.label + "++;\n" +
+						"\tgoto " + rotulo_condicao2 + ";\n" +
+						"\t" + rotulo_fim2 + ":\n" +
+						"\t" + indiceFinal.label + " = " + indiceFinal.label + " + " + tempIndice.label + ";\n" +
+						"\t" + contador1.label + "++;\n" +
+						"\tgoto " + rotulo_condicao + ";\n\t" +
+						rotulo_fim + ":\n";
+						
+						$$.label += "[" + indiceFinal.label + "]";
+
+						variaveisTemporarias.push_back({.label = contador1.label, .tipo = "int"});
+						variaveisTemporarias.push_back({.label = contador2.label, .tipo = "int"});
+						variaveisTemporarias.push_back({.label = tempIndice.label, .tipo = "int"});
+						variaveisTemporarias.push_back({.label = indiceFinal.label, .tipo = "int"});
+						variaveisTemporarias.push_back({.label = reqIndice.label, .tipo = "int*"});
 				}
 			}
 			| TK_STRING
@@ -892,27 +1075,29 @@ E 			: '(' E ')'
 
 
 
-PRINT		: TK_PRINT '(' TK_ID ')'
+PRINT		: TK_PRINT '(' REC_PRINT ')'
 			{
-				atributos retorno = buscaVariavel($3);
-				if(retorno.label != "null")
-					$$.traducao = "\tcout << " + retorno.label + " << endl;\n";
-				else
-					yyerror("Error-> Variavel nao declarada");
-			}
-			| TK_PRINT '(' TK_STRING ')'
-			{
-				$$.traducao = "\tcout << " + $3.label + " << endl;\n";
-			}
-			| TK_PRINT '(' TK_NUM ')'
-			{
-				$$.traducao = "\tcout << " + $3.label + " << endl;\n";
-			}
-			| TK_PRINT '(' E ')'
-			{
-				$$.traducao = $3.traducao + "\tcout << " + $3.label + " << endl;\n";
+				$$.traducao = $3.traducao;
 			}
 			;
+
+REC_PRINT	: E PRINT_ARG
+			{
+				$$.traducao = "\tcout << " + $1.label + ";\n" + $2.traducao +
+				"\tcout << endl;\n";
+			}
+			;
+
+PRINT_ARG	: ',' E PRINT_ARG
+			{
+				$$.traducao = $3.traducao + "\tcout << " + $2.label + ";\n";
+			}
+			|
+			{
+				$$.traducao = "";
+			}
+			;
+
 
 
 SCAN		: EMPILHA TK_SCAN '(' TK_ID ')'
@@ -922,11 +1107,9 @@ SCAN		: EMPILHA TK_SCAN '(' TK_ID ')'
 				if(temp.tipo == "string"){
 					string rotulo_bloco = pilhaDeMapas.back().rotulo_inicio;
 
-
 					temporaria stringRead = {.label = gerarNome(), .tipo = "string"};
 					temporaria tempChar = {.label = gerarNome(), .tipo = "char"};
 					temporaria contador = {.label = gerarNome(), .tipo = "int"};
-
 					
 					$$.traducao = "\t" + contador.label + " = 0;\n" +
 					"\t" + stringRead.label + " = (char*)malloc(sizeof(char));\n" +
@@ -940,7 +1123,6 @@ SCAN		: EMPILHA TK_SCAN '(' TK_ID ')'
 					"\tfree(" + temp.label + ");\n" +
 					"\t" + temp.label + " = " + stringRead.label + ";\n" +
 					"\t" + temp.tamanho + " = " + contador.label + ";\n";
-					//$$.traducao = "\t" + rotulo_bloco + ":\n" + $3.traducao + $6.traducao + "\tif(" + $6.label + ")\n\t\tgoto " + rotulo_bloco + ";\n\t" + rotulo_fim + ":\n";
 					
 					variaveisTemporarias.push_back({.label = stringRead.label, .tipo = stringRead.tipo});
 					variaveisTemporarias.push_back({.label = tempChar.label, .tipo = tempChar.tipo});
@@ -953,17 +1135,20 @@ SCAN		: EMPILHA TK_SCAN '(' TK_ID ')'
 			;
 
 
-%%			
+%%
 #include "lex.yy.c"
+#include <string>
+
 int yyparse();
+
 int main( int argc, char* argv[] )
 {
 	yyparse();
 	return 0;
 }
-void yyerror( string MSG )
+void yyerror(string mensagem)
 {
-	cout << MSG << endl;
+	cout << "Erro: " << mensagem << " Linha: " << lines << endl;
 	exit (0);
 }
 
@@ -971,5 +1156,5 @@ void yyerror( string MSG )
 Consertar:
 - free antes de sobrepor ponteiro string
 - remover "nomeVariavel" criando outra struct
-
+- problema de ter diversos acessos a indices no mesmo comando
 */
