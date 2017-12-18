@@ -17,7 +17,8 @@ int lines = 1;
 
 FILE *out_file;
 
-string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nusing namespace std;\n\nint main(void)\n{\n";
+string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nusing namespace std;\n\n";
+string main_cabecalho = "int main(void)\n{\n";
 string fim_cabecalho = "\treturn 0;\n}";
 
 map<string, string> traducao_tipos = {{"int", "int"},
@@ -47,7 +48,6 @@ struct temporaria{
 	string tipo;
 };
 
-
 struct mapaDeVariaveis{
 	vector<atributos> mapa;
 	bool bloco_quebravel;
@@ -55,6 +55,18 @@ struct mapaDeVariaveis{
 	string rotulo_fim;
 };
 
+struct parametroFuncao{
+	string nome;
+	string tipo;
+	string traducao;
+};
+
+struct funcao{
+	string nome;
+	string tipo;
+	string bloco;
+	vector<parametroFuncao> parametros;
+};
 
 ////////////////////////////////
 
@@ -65,7 +77,11 @@ void yyerror(string mensagem);
 
 vector<mapaDeVariaveis> pilhaDeMapas;
 vector<temporaria> variaveisTemporarias;
+vector<funcao> listaDeFuncoes;
+vector<parametroFuncao> auxParametros;
+
 vector<string> pilha_indice;
+vector<parametroFuncao> pilha_parametros;
 string tipo_declaracao;
 
 
@@ -92,7 +108,7 @@ string gerarNome(){
 string declararTemporarias(){
 	string retorno;
 	for(int i=0;i<variaveisTemporarias.size();i++){
-		retorno += "\t" + traducao_tipo(variaveisTemporarias[i].tipo) + " " + variaveisTemporarias[i].label + ";\n";
+		retorno += traducao_tipo(variaveisTemporarias[i].tipo) + " " + variaveisTemporarias[i].label + ";\n";
 	}
 	return retorno;
 }
@@ -123,6 +139,32 @@ atributos buscaVariavel(atributos alvo){
 	return retorno;
 }
 
+funcao buscaFuncao(funcao alvo){
+	funcao retorno;
+	for(int i=0;i<listaDeFuncoes.size();i++){
+		if(listaDeFuncoes[i].nome == alvo.nome){
+			retorno = listaDeFuncoes[i];
+		}else if(i == listaDeFuncoes.size() - 1){
+			retorno.nome = "null";
+		}
+	}
+	return retorno;
+}
+
+string declararFuncoes(){
+	string retorno;
+	for(int i=0;i<listaDeFuncoes.size();i++){
+		retorno += listaDeFuncoes[i].tipo + " " + listaDeFuncoes[i].nome + "(";
+		for(int j=0;j<listaDeFuncoes[i].parametros.size();j++){
+			retorno += listaDeFuncoes[i].parametros[j].tipo + " " + listaDeFuncoes[i].parametros[j].nome;
+			if(j < listaDeFuncoes[i].parametros.size() - 1){
+				retorno += ", ";
+			}
+		}
+		retorno += "){\n" + listaDeFuncoes[i].bloco + "}\n";
+	}
+	return retorno;
+}
 
 %}
 
@@ -152,6 +194,7 @@ atributos buscaVariavel(atributos alvo){
 %token TK_BREAK TK_CONTINUE
 %token TK_INIT_COMMENT TK_END_COMMENT
 %token TK_EXP TK_PORCENTAGEM
+%token TK_RETURN
 
 %nonassoc TK_IF
 %nonassoc TK_ELSE
@@ -168,7 +211,7 @@ atributos buscaVariavel(atributos alvo){
 %%
 S 			: GLOBAL COMANDOS FIM_GLOBAL
 			{
-				string out = cabecalho + declararTemporarias() + $2.traducao + freeMallocs() + fim_cabecalho;
+				string out = cabecalho + declararTemporarias() + declararFuncoes() + main_cabecalho + $2.traducao + freeMallocs() + fim_cabecalho;
 				out_file = fopen("out.cpp", "w");
 				cout << out;
 				fprintf(out_file, "%s",out.c_str());
@@ -242,38 +285,111 @@ COMANDO 	: E ';'
 			| SWITCH
 			| BREAK ';'
 			| CONTINUE ';'
-			| FUNCAO
+			| FUNCAO_DECLARACAO
+			| FUNCAO_CHAMADA ';'
+			| RETORNO ';'
 			| COMENTARIOS
 			;
 
 
-FUNCAO		: TK_ID '(' PARAMETROS ')' EMPILHA BLOCO
-			{
-				$$.traducao = $3.traducao;
-				pilhaDeMapas.pop_back();
-			}
-			;
+FUNCAO_DECLARACAO		: TK_TIPO TK_ID EMPILHA '(' PARAMETROS_DECLARACAO ')' BLOCO
+						{
+							funcao novaFuncao;
+							novaFuncao = {.nome = $2.label, .tipo = $1.label};
+							for(int i=0;i<pilha_parametros.size();i++){
+								novaFuncao.parametros.push_back(pilha_parametros[i]);
+							}
+							novaFuncao.bloco = $7.traducao;
+							listaDeFuncoes.push_back(novaFuncao);
+							pilha_parametros.clear();
+							$$.traducao = "";
+							tipo_declaracao = "";
+							pilhaDeMapas.pop_back();
+						}
+						;
 
-PARAMETROS	: E PARAMETRO
-			{
-				$$.label = gerarNome();
-				$$.tipo = $1.tipo;
-				$$.traducao = $2.traducao + "\t" + $$.label + " = " + $1.label + ";\n";
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-			}
-			;
 
-PARAMETRO	: ',' E PARAMETRO
-			{
-				$$.label = gerarNome();
-				$$.tipo = $2.tipo;
-				$$.traducao = $3.traducao + "\t" + $$.label + " = " + $2.label + ";\n";
+PARAMETROS_DECLARACAO	: TK_TIPO TK_ID PARAMETRO_DECLARACAO
+						{
+							atributos parametro = {.label = gerarNome(), .nomeVariavel = $2.label, .traducao = "", .tipo = $1.label};
+							pilha_parametros.push_back({.nome = parametro.label, .tipo = parametro.tipo});
+							pilhaDeMapas.back().mapa.push_back(parametro);
+						}
+						|
+						{
+							$$.traducao = "";
+						}
+						;
 
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-			}
-			|
+
+PARAMETRO_DECLARACAO	: ',' TK_TIPO TK_ID PARAMETRO_DECLARACAO
+						{
+							atributos parametro = {.label = gerarNome(), .nomeVariavel = $3.label, .traducao = "", .tipo = $2.label};
+							pilha_parametros.push_back({.nome = parametro.label, .tipo = parametro.tipo});
+							pilhaDeMapas.back().mapa.push_back(parametro);
+						}
+						|
+						{
+							$$.traducao = "";
+						}
+						;
+
+FUNCAO_CHAMADA			: TK_ID '(' PARAMETROS_CHAMADA ')'
+						{
+							funcao busca = buscaFuncao({.nome = $1.label});
+
+							if(busca.nome != "null"){
+								$$.label = gerarNome();
+								$$.tipo = busca.tipo;
+								$$.traducao = "";
+								for(int i=0;i<auxParametros.size();i++){
+									$$.traducao += auxParametros[i].traducao;
+								}
+								$$.traducao += "\t" + $$.label + " = " + $1.label + "(";
+								for(int i=0;i<auxParametros.size();i++){	
+									if(i == auxParametros.size() - 1)
+										$$.traducao += auxParametros[i].nome;
+									else
+										$$.traducao += auxParametros[i].nome + ", ";
+								}
+								$$.traducao += ");\n";
+
+								variaveisTemporarias.push_back({.label = $$.label, .tipo = busca.tipo});
+								auxParametros.clear();
+							}else{
+								yyerror("Funcao nao declarada");
+							}
+							
+						}
+						;
+
+PARAMETROS_CHAMADA		: E PARAMETRO_CHAMADA
+						{
+							auxParametros.push_back({.nome = $1.label, .tipo = $1.tipo, .traducao = $1.traducao});
+							$$.traducao = "";
+						}
+						|
+						{
+							$$.traducao = "";
+						}
+						;
+
+PARAMETRO_CHAMADA		: ',' E PARAMETRO_CHAMADA
+						{
+							auxParametros.push_back({.nome = $2.label, .tipo = $2.tipo, .traducao = $2.traducao});
+							$$.traducao = "";
+						}
+						|
+						{
+							$$.traducao = "";
+						}
+						;
+
+
+
+RETORNO		: TK_RETURN E
 			{
-				$$.traducao = "";
+				$$.traducao = $2.traducao + "\treturn " + $2.label + ";\n";
 			}
 			;
 
@@ -468,7 +584,7 @@ L 			: L TK_OPL L
 			{
 				$$.label = gerarNome();
 				$$.tipo = "bool";
-				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";	
+				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
 				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| '(' L ')'
@@ -623,7 +739,6 @@ DECLARACAO	: TK_TIPO TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
 					pilhaDeMapas.back().mapa.push_back($$);
 					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 					tipo_declaracao = "";
-
 				}else{
 					$$.traducao = $4.traducao;
 					pilhaDeMapas.back().mapa.push_back($$);
@@ -974,6 +1089,10 @@ E 			: '(' E ')'
 				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " * " + $3.label + ";\n\t" + $$.label + " = " + $$.label + " / 100;\n";
 				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
+			| FUNCAO_CHAMADA
+			{
+				$$ = $1;
+			}
 			| TK_CAST E
 			{
 				$$.label = gerarNome();				
@@ -1013,7 +1132,6 @@ E 			: '(' E ')'
 			}
 			| TK_ID INDICES
 			{
-				cout << "BB" << endl;
 				$$ = buscaVariavel($1);
 				if($$.label == "null"){
 					yyerror("Variavel nao declarada");

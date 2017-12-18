@@ -1,4 +1,7 @@
-int a[3][3];
-a[2][3] = 10;
-int b = a[2][3];
-print(b);
+int teste(int a, int b){
+    int d;
+    d = a + b;
+    return d;
+}
+
+c = teste(2,3);
