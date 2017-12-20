@@ -1062,6 +1062,8 @@ E 			: '(' E ')'
 					$$.label = gerarNome();
 					if($1.tipo == $3.tipo){
 						$$.tipo = $1.tipo;
+						cout << $1.label << endl;
+						cout << $3.label << endl;
 						$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
 					}else{
 						$$.tipo = "float";
@@ -1205,6 +1207,7 @@ E 			: '(' E ')'
 						variaveisTemporarias.back().variaveis.push_back({.label = indiceFinal.label, .tipo = "int"});
 						variaveisTemporarias.back().variaveis.push_back({.label = reqIndice.label, .tipo = "int*"});
 				}
+				pilha_indice.clear();
 			}
 			| TK_STRING
 			{
