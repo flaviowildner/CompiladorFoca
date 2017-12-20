@@ -1197,6 +1197,7 @@ E 			: '(' E ')'
 						rotulo_fim + ":\n";
 						
 						$$.label += "[" + indiceFinal.label + "]";
+						$$.tipo.pop_back();
 
 						variaveisTemporarias.back().variaveis.push_back({.label = contador1.label, .tipo = "int"});
 						variaveisTemporarias.back().variaveis.push_back({.label = contador2.label, .tipo = "int"});
@@ -1226,14 +1227,14 @@ PRINT		: TK_PRINT '(' REC_PRINT ')'
 
 REC_PRINT	: E PRINT_ARG
 			{
-				$$.traducao = "\tcout << " + $1.label + ";\n" + $2.traducao +
+				$$.traducao = $1.traducao + "\tcout << " + $1.label + ";\n" + $2.traducao +
 				"\tcout << endl;\n";
 			}
 			;
 
 PRINT_ARG	: ',' E PRINT_ARG
 			{
-				$$.traducao = $3.traducao + "\tcout << " + $2.label + ";\n";
+				$$.traducao = $3.traducao + $2.traducao + "\tcout << " + $2.label + ";\n";
 			}
 			|
 			{
