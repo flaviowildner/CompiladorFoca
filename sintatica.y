@@ -207,9 +207,10 @@ string declararFuncoes(){
 %token TK_INCREMENTO
 %token TK_INCREM_ATRIB_ABREV
 %token TK_BREAK TK_CONTINUE
-%token TK_INIT_COMMENT TK_END_COMMENT
+%token TK_INIT_COMMENT TK_INIT_COMMENT_LINE TK_END_COMMENT
 %token TK_EXP TK_PORCENTAGEM
 %token TK_RETURN
+%token TK_EOF
 
 %nonassoc TK_IF
 %nonassoc TK_ELSE
@@ -424,10 +425,7 @@ COMENTARIOS : TK_INIT_COMMENT COMANDOS TK_END_COMMENT
 			{
 				$$.traducao = "";
 			}
-			| "//" COMANDO '\n'
-			{
-				$$.traducao = "";
-			}
+			
 			;
 
 

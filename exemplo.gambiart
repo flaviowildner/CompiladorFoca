@@ -3,5 +3,6 @@ int b[5];
 a[3] = 5;
 b[2] = 3;
 
+//print(10); print(15);
 
 print(a[b[2]]);
