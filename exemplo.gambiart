@@ -1,7 +1,20 @@
-int teste(int a, int b){
-    int d;
-    d = a + b;
-    return d;
+int fibo(int n){
+    if (n < 2) {
+        return n;
+    } else {
+        return fibo(n - 1) + fibo(n - 2);
+    }
 }
 
-c = teste(2,3);
+int fibo2(int n){
+    if (n < 2) {
+        return n;
+    } else {
+        return fibo(n - 1) + fibo(n - 2);
+    }
+}
+
+c = fibo(10);
+d = fibo2(8);
+print(c);
+print(d);

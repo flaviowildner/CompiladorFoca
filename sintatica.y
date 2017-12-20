@@ -48,7 +48,11 @@ struct temporaria{
 	string tipo;
 };
 
-struct mapaDeVariaveis{
+struct mapaTemporaria{
+	vector<temporaria> variaveis;
+};
+
+struct mapaDeVariaveisDeclaradas{
 	vector<atributos> mapa;
 	bool bloco_quebravel;
 	string rotulo_inicio;
@@ -75,14 +79,16 @@ int yylex(void);
 void yyerror(string mensagem);
 
 
-vector<mapaDeVariaveis> pilhaDeMapas;
-vector<temporaria> variaveisTemporarias;
+vector<mapaDeVariaveisDeclaradas> pilhaDeMapas;
+vector<mapaTemporaria> variaveisTemporarias;
 vector<funcao> listaDeFuncoes;
 vector<parametroFuncao> auxParametros;
+funcao tempFuncao;
 
 vector<string> pilha_indice;
 vector<parametroFuncao> pilha_parametros;
 string tipo_declaracao;
+string funcao_declarada;
 
 
 string traducao_tipo(string tipo){
@@ -91,9 +97,13 @@ string traducao_tipo(string tipo){
 
 string freeMallocs(){
 	string retorno;
-	for(int i=0;i<variaveisTemporarias.size();i++)
-		if(find(begin(tipos_ponteiros), end(tipos_ponteiros), variaveisTemporarias[i].tipo) != end(tipos_ponteiros))
-			retorno += "\tfree(" + variaveisTemporarias[i].label + ");\n";
+	for(int i=0;i<variaveisTemporarias.size();i++){
+		for(int j=0;j<variaveisTemporarias[i].variaveis.size();j++){
+			if(find(begin(tipos_ponteiros), end(tipos_ponteiros), variaveisTemporarias[i].variaveis[j].tipo) != end(tipos_ponteiros))
+				retorno += "\tfree(" + variaveisTemporarias[i].variaveis[j].label + ");\n";
+		}
+	}
+		
 	return retorno;
 }
 
@@ -108,7 +118,9 @@ string gerarNome(){
 string declararTemporarias(){
 	string retorno;
 	for(int i=0;i<variaveisTemporarias.size();i++){
-		retorno += traducao_tipo(variaveisTemporarias[i].tipo) + " " + variaveisTemporarias[i].label + ";\n";
+		for(int j=0;j<variaveisTemporarias[i].variaveis.size();j++){
+			retorno += traducao_tipo(variaveisTemporarias[i].variaveis[j].tipo) + " " + variaveisTemporarias[i].variaveis[j].label + ";\n";
+		}
 	}
 	return retorno;
 }
@@ -141,13 +153,16 @@ atributos buscaVariavel(atributos alvo){
 
 funcao buscaFuncao(funcao alvo){
 	funcao retorno;
+	if(alvo.nome == tempFuncao.nome){
+		retorno = tempFuncao;
+		return retorno;
+	}
 	for(int i=0;i<listaDeFuncoes.size();i++){
 		if(listaDeFuncoes[i].nome == alvo.nome){
-			retorno = listaDeFuncoes[i];
-		}else if(i == listaDeFuncoes.size() - 1){
-			retorno.nome = "null";
+			return listaDeFuncoes[i];
 		}
 	}
+	retorno.nome = "null";
 	return retorno;
 }
 
@@ -211,7 +226,7 @@ string declararFuncoes(){
 %%
 S 			: GLOBAL COMANDOS FIM_GLOBAL
 			{
-				string out = cabecalho + declararTemporarias() + declararFuncoes() + main_cabecalho + $2.traducao + freeMallocs() + fim_cabecalho;
+				string out = cabecalho + declararTemporarias() + "\n" + declararFuncoes() + "\n" + main_cabecalho + $2.traducao + freeMallocs() + fim_cabecalho;
 				out_file = fopen("out.cpp", "w");
 				cout << out;
 				fprintf(out_file, "%s",out.c_str());
@@ -221,20 +236,23 @@ S 			: GLOBAL COMANDOS FIM_GLOBAL
 
 GLOBAL		:
 			{
-				mapaDeVariaveis mapa;
-				pilhaDeMapas.push_back(mapa);
+				mapaDeVariaveisDeclaradas mapaDeclaradas;
+				pilhaDeMapas.push_back(mapaDeclaradas);
+				mapaTemporaria temporariaMapa;
+				variaveisTemporarias.push_back(temporariaMapa);
 			}
 			;
 
 FIM_GLOBAL	:
 			{
 				pilhaDeMapas.pop_back();
+				//variaveisTemporarias.pop_back();
 			}
 			;
 
 EMPILHA		: 
 			{
-				mapaDeVariaveis mapa;
+				mapaDeVariaveisDeclaradas mapa;
 				mapa.rotulo_inicio = gerarRotulo();
 				mapa.rotulo_fim = gerarRotulo();
 				mapa.bloco_quebravel = false;
@@ -245,7 +263,7 @@ EMPILHA		:
 
 EMPILHA_QUEBRAVEL :
 			{
-				mapaDeVariaveis mapa;
+				mapaDeVariaveisDeclaradas mapa;
 				mapa.rotulo_inicio = gerarRotulo();
 				mapa.rotulo_fim = gerarRotulo();
 				mapa.bloco_quebravel = true;
@@ -291,20 +309,29 @@ COMANDO 	: E ';'
 			| COMENTARIOS
 			;
 
-
-FUNCAO_DECLARACAO		: TK_TIPO TK_ID EMPILHA '(' PARAMETROS_DECLARACAO ')' BLOCO
+/* Para resolver a recursividade, declarar as variáveis dentro da função.*/
+FUNCAO_DECLARACAO		: ASSINATURA_FUNCAO EMPILHA '(' PARAMETROS_DECLARACAO ')' BLOCO
 						{
-							funcao novaFuncao;
-							novaFuncao = {.nome = $2.label, .tipo = $1.label};
-							for(int i=0;i<pilha_parametros.size();i++){
-								novaFuncao.parametros.push_back(pilha_parametros[i]);
-							}
-							novaFuncao.bloco = $7.traducao;
-							listaDeFuncoes.push_back(novaFuncao);
+							for(int i=0;i<pilha_parametros.size();i++)
+								tempFuncao.parametros.push_back(pilha_parametros[i]);
+							for(int i=0;i<variaveisTemporarias.back().variaveis.size();i++)
+								tempFuncao.bloco += "\t" + variaveisTemporarias.back().variaveis[i].tipo + " " + variaveisTemporarias.back().variaveis[i].label + ";\n";
+							tempFuncao.bloco += $6.traducao + "\t;\n";
+							listaDeFuncoes.push_back(tempFuncao);
+							tempFuncao.parametros.clear();
 							pilha_parametros.clear();
 							$$.traducao = "";
 							tipo_declaracao = "";
 							pilhaDeMapas.pop_back();
+							variaveisTemporarias.pop_back();
+						}
+						;
+
+ASSINATURA_FUNCAO		: TK_TIPO TK_ID
+						{
+							tempFuncao = {.nome = $2.label, .tipo = $1.label};
+							mapaTemporaria temporariaMapa;
+							variaveisTemporarias.push_back(temporariaMapa);
 						}
 						;
 
@@ -337,7 +364,6 @@ PARAMETRO_DECLARACAO	: ',' TK_TIPO TK_ID PARAMETRO_DECLARACAO
 FUNCAO_CHAMADA			: TK_ID '(' PARAMETROS_CHAMADA ')'
 						{
 							funcao busca = buscaFuncao({.nome = $1.label});
-
 							if(busca.nome != "null"){
 								$$.label = gerarNome();
 								$$.tipo = busca.tipo;
@@ -354,7 +380,7 @@ FUNCAO_CHAMADA			: TK_ID '(' PARAMETROS_CHAMADA ')'
 								}
 								$$.traducao += ");\n";
 
-								variaveisTemporarias.push_back({.label = $$.label, .tipo = busca.tipo});
+								variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = busca.tipo});
 								auxParametros.clear();
 							}else{
 								yyerror("Funcao nao declarada");
@@ -502,7 +528,6 @@ FOR			: TK_FOR '(' EMPILHA_QUEBRAVEL ATRIBUICAO ';' L ';' ATRIBUICAO ')' BLOCO
 				string rotulo_incremento = pilhaDeMapas.back().rotulo_inicio;
 				string rotulo_fim = pilhaDeMapas.back().rotulo_fim;
 				string rotulo_condicao = gerarRotulo();
-
 				
 				$$.traducao = $4.traducao + "\t" + rotulo_condicao + ":\n" + $6.traducao + "\tif(!" + $6.label + ")\n\t\tgoto " + rotulo_fim + ";\n" + $10.traducao + "\t" + rotulo_incremento + ":\n" + $8.traducao + "\tgoto " + rotulo_condicao + ";\n\t" + rotulo_fim + ":\n";
 				pilhaDeMapas.pop_back();
@@ -562,7 +587,7 @@ CASE_VALOR	: TK_NUM
 				$$ = $1;
 				$$.label = gerarNome();
 				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| TK_ID
 			{
@@ -576,7 +601,7 @@ CASE_VALOR	: TK_NUM
 				$$ = $1;
 				$$.label = gerarNome();
 				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			;
 
@@ -585,14 +610,14 @@ L 			: L TK_OPL L
 				$$.label = gerarNome();
 				$$.tipo = "bool";
 				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| '(' L ')'
 			{
 				$$.label = gerarNome();
 				$$.tipo = "bool";
 				$$.traducao = $2.traducao + "\t" + $$.label + " = " + $2.label + ";\n";
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			|
 			R
@@ -619,10 +644,10 @@ R			: E TK_OPR E
 						}else{
 							$$.traducao = $1.traducao + $3.traducao + "\t" + tempCastVar.label + " = (float)" + $3.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + tempCastVar.label + ";\n";
 						}
-						variaveisTemporarias.push_back({.label = tempCastVar.label, .tipo = tempCastVar.tipo});
+						variaveisTemporarias.back().variaveis.push_back({.label = tempCastVar.label, .tipo = tempCastVar.tipo});
 					}
 				}
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			;
 
@@ -632,7 +657,7 @@ INDICE 		: '[' E ']'
 				$$.tipo = $2.tipo;
 				$$.traducao = $2.traducao + "\t" + $$.label + " = " + $2.label + ";\n";
 				pilha_indice.push_back($$.label);
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			;
 
@@ -645,7 +670,7 @@ INDICE_REC	: INDICE INDICE_REC
 				}else{
 					$$.traducao = $1.traducao + "\t" + $$.label + " = " + $1.label + ";\n";
 				}	
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			|
 			{
@@ -664,7 +689,7 @@ INDICES		: INDICE INDICE_REC
 				}else{
 					$$.traducao = $1.traducao + "\t" + $$.label + " = " + $1.label + ";\n";
 				}	
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			;
 
@@ -737,12 +762,12 @@ DECLARACAO	: TK_TIPO TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
 					$4.traducao;
 
 					pilhaDeMapas.back().mapa.push_back($$);
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 					tipo_declaracao = "";
 				}else{
 					$$.traducao = $4.traducao;
 					pilhaDeMapas.back().mapa.push_back($$);
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 				}
 			}
 			| TK_TIPO TK_ID INDICES ATRIB_ARRAY MULTIPLAS_DECLARACOES
@@ -773,8 +798,8 @@ DECLARACAO	: TK_TIPO TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
 						$$.tamanho = to_string(pilha_indice.size());
 
 						pilhaDeMapas.back().mapa.push_back($$);
-						variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-						variaveisTemporarias.push_back({.label = temp_vetor.label, .tipo = temp_vetor.tipo});
+						variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
+						variaveisTemporarias.back().variaveis.push_back({.label = temp_vetor.label, .tipo = temp_vetor.tipo});
 						tipo_declaracao = "";
 						pilha_indice.clear();
 					}
@@ -800,11 +825,11 @@ MULTIPLAS_DECLARACOES	: ',' TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
 									$4.traducao;
 
 									pilhaDeMapas.back().mapa.push_back($$);
-									variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+									variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 
 								}else{
 									$$.traducao = $4.traducao;
-									variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+									variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 								}
 								
 							}else{
@@ -837,8 +862,8 @@ MULTIPLAS_DECLARACOES	: ',' TK_ID ATRIB_DECLARACAO MULTIPLAS_DECLARACOES
 									$$.tamanho = to_string(pilha_indice.size());
 
 									pilhaDeMapas.back().mapa.push_back($$);
-									variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-									variaveisTemporarias.push_back({.label = temp_vetor.label, .tipo = temp_vetor.tipo});
+									variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
+									variaveisTemporarias.back().variaveis.push_back({.label = temp_vetor.label, .tipo = temp_vetor.tipo});
 									pilha_indice.clear();
 								}
 							}
@@ -865,7 +890,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 						$$.vetor_indices = $4.vetor_indices;
 						$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
 						pilhaDeMapas.back().mapa.push_back($$);
-						variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+						variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 					}else{
 						
 					}
@@ -907,11 +932,11 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 						rotulo_fim + ":\n" +
 						"\t" + $$.label + "[" + indiceFinal.label + "] = " + $4.label + ";\n";
 
-						variaveisTemporarias.push_back({.label = contador1.label, .tipo = "int"});
-						variaveisTemporarias.push_back({.label = contador2.label, .tipo = "int"});
-						variaveisTemporarias.push_back({.label = tempIndice.label, .tipo = "int"});
-						variaveisTemporarias.push_back({.label = indiceFinal.label, .tipo = "int"});
-						variaveisTemporarias.push_back({.label = reqIndice.label, .tipo = "int*"});
+						variaveisTemporarias.back().variaveis.push_back({.label = contador1.label, .tipo = "int"});
+						variaveisTemporarias.back().variaveis.push_back({.label = contador2.label, .tipo = "int"});
+						variaveisTemporarias.back().variaveis.push_back({.label = tempIndice.label, .tipo = "int"});
+						variaveisTemporarias.back().variaveis.push_back({.label = indiceFinal.label, .tipo = "int"});
+						variaveisTemporarias.back().variaveis.push_back({.label = reqIndice.label, .tipo = "int*"});
 					}else{
 						$$.traducao = $4.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 					}
@@ -929,7 +954,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 						$$.tamanho = $3.tamanho;
 						$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 						pilhaDeMapas.back().mapa.push_back($$);
-						variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+						variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 					}else{
 
 					}
@@ -947,7 +972,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 					$$.tipo = $3.tipo;
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 					pilhaDeMapas.back().mapa.push_back($$);
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 				}
@@ -961,7 +986,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 					$$.tipo = $3.tipo;
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 					pilhaDeMapas.back().mapa.push_back($$);
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 				}
@@ -976,7 +1001,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 					$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
 
 					pilhaDeMapas.back().mapa.push_back($$);
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
 					$$.traducao = $4.traducao + "\t" + $$.label + " = " + $4.label + ";\n";
 				}
@@ -991,7 +1016,7 @@ ATRIBUICAO	: TK_ID INDICES '=' E
 					
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 					pilhaDeMapas.back().mapa.push_back($$);
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
 					$$.traducao = $3.traducao + "\t" + $$.label + " = " + $3.label + ";\n";
 				}
@@ -1031,7 +1056,7 @@ E 			: '(' E ')'
 					$$.label + "[0] = \'\\0\';\n" + 
 					"\tstrcat(" + $$.label + "," + $1.label + ");\n" + 
 					"\tstrcat(" + $$.label + "," + $3.label + ");\n";
-					variaveisTemporarias.push_back({.label = $$.tamanho, .tipo = "int"});
+					variaveisTemporarias.back().variaveis.push_back({.label = $$.tamanho, .tipo = "int"});
 				}
 				else{
 					$$.label = gerarNome();
@@ -1048,10 +1073,10 @@ E 			: '(' E ')'
 						}else{
 							$$.traducao = $1.traducao + $3.traducao + "\t" + tempCastVar.label + " = (float)" + $3.label + ";\n\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + tempCastVar.label + ";\n";
 						}
-						variaveisTemporarias.push_back({.label = tempCastVar.label, .tipo = tempCastVar.tipo});
+						variaveisTemporarias.back().variaveis.push_back({.label = tempCastVar.label, .tipo = tempCastVar.tipo});
 					}
 				}
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| E TK_EXP E
 			{
@@ -1079,15 +1104,15 @@ E 			: '(' E ')'
 				"\tif(" + $3.label + " < 0)\n\t" +
 				"\t" + $$.label + " = 1 / " + $$.label + ";\n";
 
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-				variaveisTemporarias.push_back({.label = tempVarInic.label, .tipo = tempVarInic.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = tempVarInic.label, .tipo = tempVarInic.tipo});
 			}
 			| E TK_PORCENTAGEM E
 			{
 				$$.label = gerarNome();
 				$$.tipo = "float";
 				$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " * " + $3.label + ";\n\t" + $$.label + " = " + $$.label + " / 100;\n";
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| FUNCAO_CHAMADA
 			{
@@ -1103,14 +1128,14 @@ E 			: '(' E ')'
 					$$.tipo = "int";
 					$$.traducao = $2.traducao + "\t" + $$.label + " = (int)" + $2.label + ";\n";
 				}
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| TK_NUM
 			{
 				$$.label = gerarNome();
 				$$.tipo = $1.tipo;
 				$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 			}
 			| TK_ARITMETICO E
 			{
@@ -1118,7 +1143,7 @@ E 			: '(' E ')'
 					$$ = $2;
 					$$.label = gerarNome();
 					$$.traducao = $2.traducao + "\t" + $$.label + " = -" + $2.label + ";\n";
-					variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
 				}else{
 					yyerror("Sinal incorreto");
 				}
@@ -1173,11 +1198,11 @@ E 			: '(' E ')'
 						
 						$$.label += "[" + indiceFinal.label + "]";
 
-						variaveisTemporarias.push_back({.label = contador1.label, .tipo = "int"});
-						variaveisTemporarias.push_back({.label = contador2.label, .tipo = "int"});
-						variaveisTemporarias.push_back({.label = tempIndice.label, .tipo = "int"});
-						variaveisTemporarias.push_back({.label = indiceFinal.label, .tipo = "int"});
-						variaveisTemporarias.push_back({.label = reqIndice.label, .tipo = "int*"});
+						variaveisTemporarias.back().variaveis.push_back({.label = contador1.label, .tipo = "int"});
+						variaveisTemporarias.back().variaveis.push_back({.label = contador2.label, .tipo = "int"});
+						variaveisTemporarias.back().variaveis.push_back({.label = tempIndice.label, .tipo = "int"});
+						variaveisTemporarias.back().variaveis.push_back({.label = indiceFinal.label, .tipo = "int"});
+						variaveisTemporarias.back().variaveis.push_back({.label = reqIndice.label, .tipo = "int*"});
 				}
 			}
 			| TK_STRING
@@ -1186,8 +1211,8 @@ E 			: '(' E ')'
 				$$.tamanho = gerarNome();
 				$$.tipo = $1.tipo;
 				$$.traducao = "\t" + $$.tamanho + " = " + to_string($1.label.size() - 1) + ";\n\t" + $$.label + " = (char*)malloc(" + $$.tamanho + " * sizeof(char));\n\tstrcpy(" + $$.label + ", " + $1.label + ");\n";
-				variaveisTemporarias.push_back({.label = $$.label, .tipo = $$.tipo});
-				variaveisTemporarias.push_back({.label = $$.tamanho, .tipo = "int"});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.label, .tipo = $$.tipo});
+				variaveisTemporarias.back().variaveis.push_back({.label = $$.tamanho, .tipo = "int"});
 			}
 			;
 
@@ -1242,9 +1267,9 @@ SCAN		: EMPILHA TK_SCAN '(' TK_ID ')'
 					"\t" + temp.label + " = " + stringRead.label + ";\n" +
 					"\t" + temp.tamanho + " = " + contador.label + ";\n";
 					
-					variaveisTemporarias.push_back({.label = stringRead.label, .tipo = stringRead.tipo});
-					variaveisTemporarias.push_back({.label = tempChar.label, .tipo = tempChar.tipo});
-					variaveisTemporarias.push_back({.label = contador.label, .tipo = contador.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = stringRead.label, .tipo = stringRead.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = tempChar.label, .tipo = tempChar.tipo});
+					variaveisTemporarias.back().variaveis.push_back({.label = contador.label, .tipo = contador.tipo});
 
 				}else if(temp.tipo == "int" || temp.tipo == "float" || temp.tipo == "char"){
 					$$.traducao = "\tcin >> " + temp.label + ";\n";
