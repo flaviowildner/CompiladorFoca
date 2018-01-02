@@ -3,5 +3,5 @@ all:
 	bison -d sintatica.y
 	g++ sintatica.tab.c -o GeradorIntermediario -std=gnu++11
 	./GeradorIntermediario < exemplo.gambiart
-	g++ out.cpp -o GambiArtLanguageCompilado
-	./GambiArtLanguageCompilado
+	g++ out.cpp -o GambiArtCompilado
+	./GambiArtCompilado

@@ -19,7 +19,7 @@ FILE *out_file;
 
 string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nusing namespace std;\n\n";
 string main_cabecalho = "int main(void)\n{\n";
-string fim_cabecalho = "\treturn 0;\n}";
+string fim_cabecalho = "\treturn 0;\n}\n";
 
 map<string, string> traducao_tipos = {{"int", "int"},
 									{"float", "float"},

@@ -38,3 +38,7 @@
 *.tab.h
 *.txt
 *.cpp
+
+# Execs
+GambiArtCompilado
+GeradorIntermediario
