@@ -1,6 +1,15 @@
-int a[5];
-int b[5];
-a[3] = 5;
-b[2] = 3;
+i=0;
+j=0;
 
-print(a[b[2]]);
+a=10;
+b=15;
+
+int v[a][b];
+
+
+for(i=0;i<a;i++){
+	for(j=0;j<b;j++){
+		v[i][j] = i + j;
+		print(v[i][j]);
+	}
+}

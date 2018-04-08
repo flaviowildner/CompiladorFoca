@@ -228,9 +228,9 @@ string declararFuncoes(){
 S 			: GLOBAL COMANDOS FIM_GLOBAL
 			{
 				string out = cabecalho + declararTemporarias() + "\n" + declararFuncoes() + "\n" + main_cabecalho + $2.traducao + freeMallocs() + fim_cabecalho;
-				out_file = fopen("out.cpp", "w");
+				out_file = fopen("intermediario.cpp", "w");
 				cout << out;
-				fprintf(out_file, "%s",out.c_str());
+				fprintf(out_file, "%s", out.c_str());
 				fclose(out_file);
 			}
 			;
