@@ -17,7 +17,7 @@ int lines = 1;
 
 FILE *out_file;
 
-string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nusing namespace std;\n\n";
+string cabecalho = "/*Compilador GambiArt*/\n#include <iostream>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nusing namespace std;\n\n";
 string main_cabecalho = "int main(void)\n{\n";
 string fim_cabecalho = "\treturn 0;\n}\n";
 
@@ -207,7 +207,7 @@ string declararFuncoes(){
 %token TK_INCREMENTO
 %token TK_INCREM_ATRIB_ABREV
 %token TK_BREAK TK_CONTINUE
-%token TK_INIT_COMMENT TK_INIT_COMMENT_LINE TK_END_COMMENT
+%token TK_INIT_COMMENT TK_END_COMMENT
 %token TK_EXP TK_PORCENTAGEM
 %token TK_RETURN
 %token TK_EOF
@@ -1060,8 +1060,8 @@ E 			: '(' E ')'
 					$$.label = gerarNome();
 					if($1.tipo == $3.tipo){
 						$$.tipo = $1.tipo;
-						cout << $1.label << endl;
-						cout << $3.label << endl;
+						//cout << $1.label << endl;
+						//cout << $3.label << endl;
 						$$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " " + $2.traducao + " " + $3.label + ";\n";
 					}else{
 						$$.tipo = "float";

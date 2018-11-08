@@ -70,8 +70,6 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "/*" {return TK_INIT_COMMENT;}
 
-"//" {return TK_INIT_COMMENT_LINE;}
-
 "*/" {return TK_END_COMMENT;}
 
 "**"	{return TK_EXP;}
